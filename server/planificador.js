@@ -175,6 +175,8 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
   if (vehiculo === 'bici') {
     // Bicicleta o monopatín (R.M. 127-2021-MTC: solo ciclovías, calles o jirones): nunca por avenidas.
     pedidos = [
+      // Sin zonas: el perfil de bici elige por sí mismo las ciclovías, incluso las que van junto a una avenida.
+      sinAvenidas(cuerpo, red, extremos, new Set(['autopista']), 'recommended', 'bici-ciclovias', 'cycling-regular'),
       sinAvenidas(cuerpo, red, extremos, medianas, 'recommended', 'bici', 'cycling-regular'),
       sinAvenidas(cuerpo, red, extremos, medianas, 'shortest', 'bici-corta', 'cycling-regular'),
     ];
