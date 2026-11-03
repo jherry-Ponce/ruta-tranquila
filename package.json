@@ -1,0 +1,15 @@
+{
+  "name": "ruta-tranquila",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Rutas por calles tranquilas en Lima para quienes están aprendiendo a manejar.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.9"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server/index.js",
+    "datos": "node scripts/descargar-vias.js",
+    "test": "node --test"
+  }
+}

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f5e57" />
+    <title>Ruta Tranquila</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="estilos.css" />
+    <link rel="icon" href="icono.svg" type="image/svg+xml" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icono.svg" />
+  </head>
+  <body>
+    <div class="app">
+      <div id="mapa" class="mapa" aria-label="Mapa"></div>
+
+      <main class="panel">
+        <header class="cabecera">
+          <h1>Ruta Tranquila</h1>
+          <p class="lema">Calles más calmadas para quienes están aprendiendo a manejar en Lima.</p>
+        </header>
+
+        <p class="aviso-seguridad" role="note">
+          <strong>Importante:</strong> la ruta es una sugerencia automática basada en datos de mapas. No reemplaza tu
+          atención al manejar ni las señales de tránsito.
+        </p>
+
+        <div id="aviso-config" class="aviso aviso-error" hidden></div>
+
+        <form id="formulario" class="formulario trayecto" autocomplete="off">
+          <div class="campo">
+            <label for="origen">Desde</label>
+            <div class="fila-entrada">
+              <span class="marca marca-origen" aria-hidden="true">A</span>
+              <input id="origen" name="origen" type="text" inputmode="search" placeholder="Ej: Juan de Aliaga 455, Magdalena del Mar" />
+              <button type="button" class="boton-mapa" data-elegir="origen" aria-label="Elegir el punto de salida en el mapa" title="Elegir en el mapa">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z" /></svg>
+              </button>
+            </div>
+            <ul id="origen-sugerencias" class="sugerencias" role="listbox" hidden></ul>
+            <div id="origen-info" class="info-punto" aria-live="polite"></div>
+          </div>
+
+          <div class="campo">
+            <label for="destino">Hasta</label>
+            <div class="fila-entrada">
+              <span class="marca marca-destino" aria-hidden="true">B</span>
+              <input id="destino" name="destino" type="text" inputmode="search" placeholder="Ej: Jr. Santorín 243, Santiago de Surco" />
+              <button type="button" class="boton-mapa" data-elegir="destino" aria-label="Elegir el punto de llegada en el mapa" title="Elegir en el mapa">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z" /></svg>
+              </button>
+            </div>
+            <ul id="destino-sugerencias" class="sugerencias" role="listbox" hidden></ul>
+            <div id="destino-info" class="info-punto" aria-live="polite"></div>
+          </div>
+
+          <fieldset class="segmentos">
+            <legend>¿En qué vas?</legend>
+            <label><input type="radio" name="vehiculo" value="auto" checked /><span>Auto o moto</span></label>
+            <label><input type="radio" name="vehiculo" value="motoElectrica" /><span>Moto eléctrica</span></label>
+            <label><input type="radio" name="vehiculo" value="bici" /><span>Bici o monopatín</span></label>
+          </fieldset>
+          <fieldset class="segmentos">
+            <legend>¿Cuánta experiencia tienes?</legend>
+            <label><input type="radio" name="nivel" value="principiante" checked /><span>Recién aprendo</span></label>
+            <label><input type="radio" name="nivel" value="intermedio" /><span>Un poco</span></label>
+            <label><input type="radio" name="nivel" value="normal" /><span>Con confianza</span></label>
+          </fieldset>
+
+          <fieldset class="salida">
+            <legend>¿Cuándo sales?</legend>
+            <label class="opcion"><input type="radio" name="cuando" value="ahora" checked /> Ahora</label>
+            <label class="opcion"><input type="radio" name="cuando" value="otra" /> Otra hora</label>
+            <input id="hora" type="datetime-local" aria-label="Fecha y hora de salida" hidden />
+          </fieldset>
+
+          <button id="buscar" type="submit" class="boton-principal">Buscar ruta tranquila</button>
+          <p id="modo-mapa" class="pista" hidden></p>
+        </form>
+
+        <div id="mensajes" aria-live="polite"></div>
+        <section id="resultados" class="resultados" aria-label="Rutas sugeridas"></section>
+        <div id="viaje" class="viaje" hidden aria-live="assertive"></div>
+
+        <section class="antes-de-salir">
+          <h2>Antes de salir</h2>
+          <ul>
+            <li>
+              La ruta se calcula para vehículos, no para bicicletas. Si tu moto o scooter supera la velocidad permitida
+              en ciclovías, no las uses aunque veas una en el camino.
+            </li>
+            <li>
+              Las rutas tranquilas tienen más giros. Revisa las instrucciones antes de salir y, si te pierdes, detente en
+              un lugar seguro para mirar el mapa.
+            </li>
+            <li>El puntaje mide el tipo de vía. Una calle residencial también puede estar llena de autos o combis.</li>
+            <li>La hora punta se calcula con la hora de Lima y no tiene en cuenta los feriados.</li>
+          </ul>
+          <h2>Tu privacidad</h2>
+          <p>
+            No guardamos tu ubicación ni tus direcciones. Para buscar las direcciones y calcular la ruta, el servidor
+            las envía a TomTom (si está activado) y a OpenRouteService. El mapa se carga desde OpenStreetMap. El botón
+            de Google Maps envía la ruta a Google solo si lo tocas.
+          </p>
+          <p class="creditos">
+            Datos de mapas © colaboradores de OpenStreetMap (ODbL). Rutas: OpenRouteService. Tráfico: TomTom.
+          </p>
+        </section>
+      </main>
+    </div>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script src="app.js" type="module"></script>
+  </body>
+</html>

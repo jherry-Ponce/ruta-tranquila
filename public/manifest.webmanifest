@@ -1,0 +1,12 @@
+{
+  "name": "Ruta Tranquila",
+  "short_name": "Ruta Tranquila",
+  "description": "Rutas por calles tranquilas en Lima para quienes están aprendiendo a manejar.",
+  "lang": "es",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f7f5",
+  "theme_color": "#0f5e57",
+  "icons": [{ "src": "icono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

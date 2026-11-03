@@ -1,0 +1,890 @@
+:root {
+  --fondo: #f4f7f5;
+  --superficie: #ffffff;
+  --texto: #18231f;
+  --texto-suave: #52625c;
+  --borde: #d5dfda;
+  --primario: #0f5e57;
+  --primario-claro: #e3f1ee;
+  --tranquila: #15803d;
+  --rapida: #475569;
+  --alternativa: #7c3aed;
+  --alerta: #b45309;
+  --alerta-fondo: #fff4dc;
+  --peligro: #c2410c;
+  --error: #b91c1c;
+  --error-fondo: #fdecec;
+  --clase-residencial: #16a34a;
+  --clase-menor: #84cc16;
+  --clase-secundaria: #f59e0b;
+  --clase-primaria: #ea580c;
+  --clase-autopista: #dc2626;
+  --clase-noApta: #6b7280;
+  --radio: 12px;
+  --sombra: 0 1px 2px rgb(0 0 0 / 0.06), 0 4px 14px rgb(0 0 0 / 0.06);
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--texto);
+  background: var(--fondo);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--fondo);
+  line-height: 1.45;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.2;
+  margin: 0;
+}
+
+/* Celular: el mapa queda fijo arriba y el panel se desplaza debajo. */
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.mapa {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 42dvh;
+  min-height: 260px;
+  background: #dfe7e3;
+}
+
+.panel {
+  padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+@media (min-width: 900px) {
+  .app {
+    flex-direction: row-reverse;
+    height: 100dvh;
+  }
+  .mapa {
+    position: relative;
+    flex: 1;
+    height: auto;
+  }
+  .panel {
+    width: 420px;
+    flex-shrink: 0;
+    overflow-y: auto;
+    border-right: 1px solid var(--borde);
+    background: var(--fondo);
+  }
+}
+
+.cabecera h1 {
+  font-size: 1.5rem;
+  color: var(--primario);
+}
+
+.lema {
+  margin: 4px 0 0;
+  color: var(--texto-suave);
+}
+
+.aviso-seguridad {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radio);
+  background: var(--alerta-fondo);
+  border: 1px solid #f3d9a4;
+  font-size: 0.92rem;
+}
+
+.aviso {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radio);
+  font-size: 0.95rem;
+}
+
+.aviso-error {
+  background: var(--error-fondo);
+  border: 1px solid #f5c2c2;
+  color: var(--error);
+}
+
+.aviso-hora {
+  background: var(--alerta-fondo);
+  border: 1px solid #f3d9a4;
+}
+
+.aviso-info {
+  background: var(--primario-claro);
+  border: 1px solid #bfdcd6;
+  color: var(--primario);
+}
+
+#mensajes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#mensajes:empty {
+  display: none;
+}
+
+/* Formulario */
+.formulario {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  background: var(--superficie);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+}
+
+.campo label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.fila-entrada {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fila-entrada input {
+  flex: 1;
+  min-width: 0;
+}
+
+input[type='text'],
+input[type='datetime-local'] {
+  font: inherit;
+  font-size: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  background: var(--superficie);
+  color: var(--texto);
+  width: 100%;
+}
+
+input:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+a:focus-visible {
+  outline: 3px solid #7cc4b8;
+  outline-offset: 2px;
+}
+
+.marca {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.marca-origen {
+  background: var(--tranquila);
+}
+
+.marca-destino {
+  background: var(--texto);
+}
+
+.boton-mapa {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  background: var(--superficie);
+  color: var(--primario);
+  cursor: pointer;
+}
+
+.boton-mapa svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+.boton-mapa[aria-pressed='true'] {
+  background: var(--primario);
+  border-color: var(--primario);
+  color: #fff;
+}
+
+.info-punto {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+}
+
+.info-punto:empty {
+  display: none;
+}
+
+.info-punto .aproximado {
+  color: var(--alerta);
+}
+
+.otras-opciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.otras-opciones button {
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--borde);
+  background: var(--fondo);
+  color: var(--texto);
+  cursor: pointer;
+  text-align: left;
+}
+
+.salida {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.salida legend {
+  font-weight: 600;
+  margin-bottom: 4px;
+  padding: 0;
+}
+
+.opcion {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+}
+
+.opcion input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primario);
+}
+
+.boton-principal {
+  font: inherit;
+  font-weight: 700;
+  font-size: 1.05rem;
+  min-height: 48px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--primario);
+  color: #fff;
+  cursor: pointer;
+}
+
+.boton-principal:disabled {
+  opacity: 0.65;
+  cursor: progress;
+}
+
+.pista {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--primario);
+  font-weight: 600;
+}
+
+/* Resultados */
+.resultados {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* En celular el mapa queda fijo arriba: al desplazarse a los resultados no deben quedar debajo. */
+  scroll-margin-top: calc(max(42dvh, 260px) + 12px);
+}
+
+@media (min-width: 900px) {
+  .resultados {
+    scroll-margin-top: 0;
+  }
+}
+
+.resultados:empty {
+  display: none;
+}
+
+.ruta {
+  --color-ruta: var(--rapida);
+  padding: 14px;
+  background: var(--superficie);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  border: 2px solid transparent;
+  border-left: 6px solid var(--color-ruta);
+  cursor: pointer;
+}
+
+.ruta.tranquila {
+  --color-ruta: var(--tranquila);
+}
+
+.ruta.alternativa {
+  --color-ruta: var(--alternativa);
+}
+
+.ruta.seleccionada {
+  border-color: var(--color-ruta);
+  border-left-width: 6px;
+}
+
+.ruta-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ruta-tipo {
+  font-size: 1.05rem;
+  color: var(--color-ruta);
+}
+
+.ruta-datos {
+  margin: 2px 0 0;
+  color: var(--texto-suave);
+  font-size: 0.95rem;
+}
+
+.puntaje {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  color: #fff;
+  text-align: center;
+  line-height: 1;
+}
+
+.puntaje strong {
+  font-size: 1.35rem;
+}
+
+.puntaje span {
+  font-size: 0.62rem;
+  opacity: 0.9;
+}
+
+.puntaje.nivel-4 {
+  background: #15803d;
+}
+.puntaje.nivel-3 {
+  background: #4d7c0f;
+}
+.puntaje.nivel-2 {
+  background: #b45309;
+}
+.puntaje.nivel-1 {
+  background: #b91c1c;
+}
+
+.puntaje-etiqueta {
+  margin: 10px 0 4px;
+  font-weight: 700;
+}
+
+.explicacion {
+  margin: 0;
+  font-size: 0.93rem;
+}
+
+.barra {
+  display: flex;
+  height: 10px;
+  margin: 10px 0 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--borde);
+}
+
+.barra span {
+  display: block;
+  height: 100%;
+}
+
+.leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8rem;
+  color: var(--texto-suave);
+}
+
+.leyenda li::before {
+  content: '';
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: var(--color-clase);
+}
+
+.clase-residencial { --color-clase: var(--clase-residencial); }
+.clase-menor { --color-clase: var(--clase-menor); }
+.clase-secundaria { --color-clase: var(--clase-secundaria); }
+.clase-primaria { --color-clase: var(--clase-primaria); }
+.clase-autopista { --color-clase: var(--clase-autopista); }
+.clase-noApta { --color-clase: var(--clase-noApta); }
+
+.barra .clase-residencial,
+.barra .clase-menor,
+.barra .clase-secundaria,
+.barra .clase-primaria,
+.barra .clase-autopista,
+.barra .clase-noApta {
+  background: var(--color-clase);
+}
+
+.nota-ruta {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+}
+
+details {
+  margin-top: 10px;
+  border-top: 1px solid var(--borde);
+  padding-top: 8px;
+}
+
+summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.lista-criticos,
+.lista-pasos {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lista-criticos li {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 8px;
+  align-items: start;
+}
+
+.lista-criticos button {
+  all: unset;
+  cursor: pointer;
+  display: block;
+}
+
+.lista-criticos .titulo-critico {
+  font-weight: 600;
+  font-size: 0.93rem;
+}
+
+.lista-criticos .detalle-critico {
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+}
+
+.lista-pasos {
+  counter-reset: paso;
+}
+
+.lista-pasos li {
+  counter-increment: paso;
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 8px;
+  font-size: 0.93rem;
+}
+
+.lista-pasos li::before {
+  content: counter(paso);
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--primario-claro);
+  color: var(--primario);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.lista-pasos .aviso-paso {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.84rem;
+  color: var(--alerta);
+}
+
+.enlace-google {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  margin-top: 10px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--borde);
+  color: var(--primario);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* Íconos de alerta (lista y mapa) */
+.icono-alerta {
+  --c: var(--clase-autopista);
+  display: block;
+  width: 26px;
+  height: 26px;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.4));
+}
+
+.icono-alerta path {
+  fill: var(--c);
+  stroke: #fff;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.icono-alerta rect,
+.icono-alerta circle {
+  fill: #fff;
+}
+
+.icono-alerta.tipo-tramo {
+  --c: var(--clase-primaria);
+}
+.icono-alerta.tipo-trafico {
+  --c: var(--alternativa);
+}
+
+.puntaje {
+  align-content: center;
+  gap: 2px;
+}
+
+.leaflet-div-icon.contenedor-alerta,
+.leaflet-div-icon.contenedor-marca {
+  background: transparent;
+  border: 0;
+}
+
+.marca-mapa {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 5px rgb(0 0 0 / 0.4);
+}
+
+.marca-mapa span {
+  transform: rotate(45deg);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
+.marca-mapa.origen {
+  background: var(--tranquila);
+}
+
+.marca-mapa.destino {
+  background: var(--texto);
+}
+
+.cargando {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--texto-suave);
+}
+
+.cargando::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 3px solid var(--borde);
+  border-top-color: var(--primario);
+  animation: girar 0.9s linear infinite;
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cargando::before {
+    animation: none;
+  }
+}
+
+.antes-de-salir {
+  font-size: 0.88rem;
+  color: var(--texto-suave);
+  border-top: 1px solid var(--borde);
+  padding-top: 12px;
+}
+
+.antes-de-salir h2 {
+  font-size: 0.95rem;
+  color: var(--texto);
+  margin: 8px 0 4px;
+}
+
+.antes-de-salir ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.antes-de-salir p {
+  margin: 4px 0;
+}
+
+.creditos {
+  font-size: 0.78rem;
+}
+
+/* Trayecto: A y B unidos por una línea punteada, como una ruta. */
+.trayecto .campo {
+  position: relative;
+}
+
+.trayecto .campo:first-of-type::after {
+  content: '';
+  position: absolute;
+  left: 13px;
+  top: 64px;
+  height: calc(100% - 36px);
+  border-left: 3px dotted #9cc9bf;
+  pointer-events: none;
+}
+
+.sugerencias {
+  position: absolute;
+  z-index: 20;
+  left: 36px;
+  right: 52px;
+  margin: 4px 0 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgb(15 94 87 / 0.18);
+}
+
+.sugerencias button {
+  all: unset;
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.sugerencias button:hover,
+.sugerencias button:focus-visible {
+  background: var(--primario-claro);
+}
+
+.sugerencias strong {
+  display: block;
+}
+
+.sugerencias span {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+}
+
+/* Opciones como botones grandes: fáciles de tocar y de leer. */
+.segmentos {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.segmentos legend {
+  font-weight: 700;
+  margin-bottom: 6px;
+  padding: 0;
+}
+
+.segmentos label {
+  position: relative;
+}
+
+.segmentos input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+}
+
+.segmentos span {
+  display: grid;
+  place-items: center;
+  min-height: 48px;
+  padding: 6px;
+  text-align: center;
+  font-size: 0.92rem;
+  line-height: 1.2;
+  border: 1.5px solid var(--borde);
+  border-radius: 10px;
+  background: var(--superficie);
+  cursor: pointer;
+}
+
+.segmentos input:checked + span {
+  border-color: var(--primario);
+  background: var(--primario);
+  color: #fff;
+  font-weight: 700;
+}
+
+.segmentos input:focus-visible + span {
+  outline: 3px solid #7cc4b8;
+  outline-offset: 2px;
+}
+
+.clase-ciclovia { --color-clase: #0e7490; }
+.clase-vereda { --color-clase: var(--clase-noApta); }
+.barra .clase-ciclovia,
+.barra .clase-vereda {
+  background: var(--color-clase);
+}
+
+.acciones-ruta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.acciones-ruta .enlace-google {
+  margin-top: 0;
+}
+
+.boton-viaje,
+.boton-secundario {
+  font: inherit;
+  font-weight: 700;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.boton-viaje {
+  border: 0;
+  background: var(--tranquila);
+  color: #fff;
+}
+
+.boton-secundario {
+  border: 1px solid var(--borde);
+  background: var(--superficie);
+  color: var(--primario);
+}
+
+/* Modo viaje: barra fija abajo, con letra grande para leerla de un vistazo al estacionarse. */
+.viaje {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+  background: var(--primario);
+  color: #fff;
+  box-shadow: 0 -4px 18px rgb(0 0 0 / 0.25);
+}
+
+.viaje-seguridad {
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+.viaje-instruccion {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.viaje-detalle {
+  margin: 4px 0 10px;
+  font-size: 1rem;
+}
+
+.viaje-botones {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.viaje .boton-principal {
+  background: #fff;
+  color: var(--primario);
+  padding: 0 18px;
+}
+
+@media (min-width: 900px) {
+  .viaje {
+    left: 0;
+    right: auto;
+    width: 420px;
+  }
+}
