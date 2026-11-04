@@ -10,7 +10,7 @@
 import { pedirRutas, ErrorServicio } from './ors.js';
 import { zonasAEvitar } from './zonas.js';
 import { medirTrafico, hayKeyTomTom } from './trafico.js';
-import { analizarRuta } from './analisis.js';
+import { analizarRuta, tramosPorClase } from './analisis.js';
 import { calcularPuntaje } from './puntaje.js';
 import { armarPasos, abreviar, formatoDistancia, avisoCruce } from './pasos.js';
 import { evaluarHorario } from './horario.js';
@@ -326,6 +326,8 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
         : null,
       pasos: armarPasos(r.pasos, r.coordenadas, r.analisis),
       geometria: r.coordenadas.map(([lon, lat]) => [Number(lat.toFixed(6)), Number(lon.toFixed(6))]),
+      // Para pintar en el mapa qué partes van por ciclovía, calle, avenida o a pie.
+      tramosPorClase: tramosPorClase(r.analisis.segmentos),
       enlaceGoogleMaps: enlaceGoogleMaps(r).replace('travelmode=driving', vehiculo === 'bici' ? 'travelmode=bicycling' : 'travelmode=driving'),
     };
   });

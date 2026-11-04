@@ -85,6 +85,7 @@ Con `HOST=0.0.0.0`, cualquier persona conectada a tu Wi-Fi puede usar la app y g
   - **Modo bolsillo:** deja la pantalla encendida pero negra y bloqueada al tacto (mantener presionado 2 s para salir), así la guía sigue por voz o por el auricular con el celular guardado. Si se apaga con el botón de encendido, la guía se detiene igual.
   - **Retomar:** al volver a encender la pantalla, la guía busca tu posición en todo lo que falta del recorrido y repite la próxima indicación ("Retomando la guía…"), en vez de decir que te saliste de la ruta.
   - **Seguir con Google Maps:** abre la navegación de Google Maps desde donde estés hasta el destino, con hasta 3 puntos de paso de lo que falta de la ruta tranquila. Google Maps sí guía con la pantalla apagada, pero entre esos puntos puede elegir otras calles.
+- **Mapa:** la ruta elegida se pinta por tramos (ciclovía, calle tranquila, calle con movimiento, avenida, a pie) con su leyenda. El botón de la bici muestra toda la red de ciclovías de Lima (se descarga una vez, ~65 KB) y el botón ⛶ pone el mapa en pantalla completa; al iniciar un viaje o ensayo pasa a pantalla completa solo y vuelve al terminar. En Android, "atrás" sale de la pantalla completa.
 - **Ensayar recorrido:** recorre la ruta sola, a unos 40 m por segundo, para escuchar la guía antes de salir.
 
 ### Instalarla en el celular (PWA) y usar la ubicación

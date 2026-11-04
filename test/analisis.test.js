@@ -77,3 +77,15 @@ test('asocia únicamente señales próximas sobre la misma avenida del cruce', (
   assert.equal(analizarCon(() => [[enMetros[0] + 200, enMetros[1]]]).semaforo, false);
   assert.equal(analizarCon((v) => v.nombre.includes('Javier Prado') ? [] : [enMetros]).semaforo, false);
 });
+
+test('agrupa la ruta en tramos por clase para pintarla en el mapa', async () => {
+  const { tramosPorClase } = await import('../server/analisis.js');
+  const segmentos = ['residencial', 'residencial', 'ciclovia', 'ciclovia', 'ciclovia', 'primaria', 'residencial'].map((clase, indice) => ({ indice, clase }));
+  assert.deepEqual(tramosPorClase(segmentos), [
+    [0, 2, 'residencial'],
+    [2, 5, 'ciclovia'],
+    [5, 6, 'primaria'],
+    [6, 7, 'residencial'],
+  ]);
+  assert.deepEqual(tramosPorClase([]), []);
+});

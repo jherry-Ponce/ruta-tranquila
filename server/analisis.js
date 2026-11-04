@@ -170,3 +170,15 @@ function agruparCruces(toques, tramos) {
     return { clase, nombres, en: g.desde, punto: aGrados(medio.punto), semaforo };
   });
 }
+
+// Agrupa los segmentos consecutivos de la misma clase para pintar la ruta por tramos en el mapa.
+// Devuelve [desde, hasta, clase] con índices de puntos de la geometría (el segmento i va del punto i al i + 1).
+export function tramosPorClase(segmentos) {
+  const tramos = [];
+  for (const s of segmentos) {
+    const ultimo = tramos.at(-1);
+    if (ultimo && ultimo[2] === s.clase && ultimo[1] === s.indice) ultimo[1] = s.indice + 1;
+    else tramos.push([s.indice, s.indice + 1, s.clase]);
+  }
+  return tramos;
+}

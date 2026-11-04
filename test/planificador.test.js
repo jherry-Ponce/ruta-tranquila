@@ -148,6 +148,11 @@ test('en bici, si sale por una avenida, ajusta el origen a una ciclovía cercana
   assert.equal(primera.duracionTotalSegundos, primera.duracionSegundos + snap.minutosCaminata * 60);
   assert.equal(primera.caminataInicial.metros, snap.distanciaCaminata);
   assert.equal(primera.caminataInicial.geometria.length, 2);
+  // Los tramos por clase cubren toda la geometría, sin huecos ni solapes.
+  const tramos = primera.tramosPorClase;
+  assert.equal(tramos[0][0], 0);
+  assert.equal(tramos.at(-1)[1], primera.geometria.length - 1);
+  tramos.forEach((t, i) => i && assert.equal(t[0], tramos[i - 1][1]));
 });
 
 test('en bici, si sale de una calle tranquila, no cambia el origen', async () => {

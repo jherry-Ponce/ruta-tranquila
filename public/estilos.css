@@ -944,3 +944,86 @@ summary {
   background-size: 100% 100%;
   transition: background-size 2s linear;
 }
+
+/* Mapa en pantalla completa (web y app). La barra del modo viaje (z-index 1000) queda encima. */
+body.mapa-completo {
+  overflow: hidden;
+}
+body.mapa-completo .mapa {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  height: 100dvh;
+  min-height: 0;
+}
+
+/* Botones del mapa: pantalla completa y red de ciclovías. */
+.controles-mapa {
+  display: flex;
+  flex-direction: column;
+}
+.controles-mapa button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid #ccc;
+  background: #fff;
+  color: var(--texto);
+  cursor: pointer;
+}
+.controles-mapa button:last-child {
+  border-bottom: 0;
+}
+.controles-mapa button[aria-pressed='true'] {
+  background: var(--primario-claro);
+  color: #0e7490;
+}
+.controles-mapa button.cargando {
+  opacity: 0.5;
+}
+.controles-mapa svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* Leyenda de los colores de la ruta. */
+.leyenda-mapa {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  max-width: calc(100vw - 80px);
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.92);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
+  color: var(--texto);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+.leyenda-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.leyenda-item i {
+  display: inline-block;
+  width: 18px;
+  height: 5px;
+  border-radius: 3px;
+}
+.leyenda-item i.a-pie {
+  height: 0;
+  border-top: 4px dotted var(--clase-noApta);
+  border-radius: 0;
+  background: none !important;
+}
+.leyenda-item i.otras {
+  height: 0;
+  border-top: 3px dashed #0e7490;
+  border-radius: 0;
+  opacity: 0.7;
+}

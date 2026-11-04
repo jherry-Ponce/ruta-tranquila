@@ -12,6 +12,7 @@ import { ErrorServicio, hayKeyOrs } from './ors.js';
 import { buscarDireccion, direccionDePunto, sugerirLugares } from './direcciones.js';
 import { hayKeyTomTom } from './trafico.js';
 import { planificar } from './planificador.js';
+import { aGrados } from './geo.js';
 
 const PUBLICO = fileURLToPath(new URL('../public/', import.meta.url));
 const PUERTO = Number(process.env.PORT) || 3000;
@@ -37,6 +38,7 @@ const POLITICA = [
 ].join('; ');
 
 let red = null;
+let ciclovias = null; // se arma una sola vez, al primer pedido
 if (existsSync(ARCHIVO_VIAS)) {
   red = cargarRed();
 } else {
@@ -109,6 +111,15 @@ const API = {
     const { lat, lon } = validarPunto(cuerpo, 'mapa');
     if (!puedeGeocodificar()) throw new ErrorServicio('Demasiadas búsquedas seguidas. Espera un momento.', 429);
     return { lugar: await direccionDePunto(lat, lon) };
+  },
+
+  // Red de ciclovías de Lima (OSM) para mostrarla en el mapa. Sin los cruces cortos marcados como ramal.
+  async '/api/ciclovias'() {
+    if (!red) throw new ErrorServicio('Faltan los datos de vías. Ejecuta: npm run datos', 503);
+    ciclovias ??= red.vias
+      .filter((v) => v.clase === 'ciclovia' && !v.ramal)
+      .map((v) => [v.nombre, v.puntos.map(aGrados).map(([lon, lat]) => [Number(lat.toFixed(5)), Number(lon.toFixed(5))])]);
+    return { ciclovias };
   },
 
   async '/api/rutas'(cuerpo) {

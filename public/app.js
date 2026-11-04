@@ -63,8 +63,146 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">colaboradores de OpenStreetMap</a>',
 }).addTo(mapa);
 
+// La red de ciclovías va en un panel propio, debajo de las rutas.
+mapa.createPane('ciclovias').style.zIndex = 350;
+const capaCiclovias = L.layerGroup();
 const capaRutas = L.layerGroup().addTo(mapa);
+const capaTramos = L.layerGroup().addTo(mapa); // ruta elegida pintada por tipo de vía
 const capaAlertas = L.layerGroup().addTo(mapa);
+
+// Colores por tipo de vía: los mismos de la barrita de cada tarjeta.
+const colorCss = (nombre, porDefecto) => getComputedStyle(document.documentElement).getPropertyValue(nombre).trim() || porDefecto;
+const COLOR_TRAMO = {
+  ciclovia: '#0e7490',
+  residencial: colorCss('--clase-residencial', '#16a34a'),
+  menor: colorCss('--clase-menor', '#84cc16'),
+  secundaria: colorCss('--clase-secundaria', '#f59e0b'),
+  primaria: colorCss('--clase-primaria', '#ea580c'),
+  autopista: colorCss('--clase-autopista', '#dc2626'),
+  vereda: colorCss('--clase-noApta', '#6b7280'),
+};
+const NOMBRE_LEYENDA = {
+  ciclovia: 'Ciclovía',
+  residencial: 'Calle tranquila',
+  menor: 'Calle con movimiento',
+  secundaria: 'Avenida mediana',
+  primaria: 'Avenida grande',
+  autopista: 'Vía rápida',
+  vereda: 'A pie',
+};
+
+// ----- Controles del mapa: pantalla completa y red de ciclovías -----
+
+const ICONO_AMPLIAR =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const ICONO_REDUCIR =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const ICONO_BICI =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="16" r="3.5"/><circle cx="18" cy="16" r="3.5"/><path d="M6 16l4-7h5l3 7M10 9l3 7h-7M14 6h2.5"/></g></svg>';
+
+const botonCompleto = document.createElement('button');
+botonCompleto.type = 'button';
+const botonCiclovias = document.createElement('button');
+botonCiclovias.type = 'button';
+botonCiclovias.innerHTML = ICONO_BICI;
+botonCiclovias.title = 'Ver todas las ciclovías';
+botonCiclovias.setAttribute('aria-label', 'Ver todas las ciclovías de Lima');
+botonCiclovias.setAttribute('aria-pressed', 'false');
+
+const controles = L.control({ position: 'topright' });
+controles.onAdd = () => {
+  const caja = L.DomUtil.create('div', 'leaflet-bar controles-mapa');
+  caja.append(botonCompleto, botonCiclovias);
+  L.DomEvent.disableClickPropagation(caja);
+  return caja;
+};
+controles.addTo(mapa);
+
+// Pantalla completa: el mapa cubre toda la pantalla (igual en la web y en la app). En Android, el botón
+// "atrás" la cierra gracias a una entrada en el historial.
+let mapaCompleto = false;
+function aplicarCompleto(activar) {
+  mapaCompleto = activar;
+  document.body.classList.toggle('mapa-completo', activar);
+  botonCompleto.innerHTML = activar ? ICONO_REDUCIR : ICONO_AMPLIAR;
+  botonCompleto.title = activar ? 'Salir de pantalla completa' : 'Mapa en pantalla completa';
+  botonCompleto.setAttribute('aria-label', botonCompleto.title);
+  setTimeout(() => mapa.invalidateSize(), 60);
+}
+function pantallaCompleta(activar) {
+  if (activar === mapaCompleto) return;
+  aplicarCompleto(activar);
+  if (activar) history.pushState({ mapaCompleto: true }, '');
+  else if (history.state?.mapaCompleto) history.back();
+}
+aplicarCompleto(false);
+botonCompleto.addEventListener('click', () => pantallaCompleta(!mapaCompleto));
+window.addEventListener('popstate', () => {
+  if (mapaCompleto && !history.state?.mapaCompleto) aplicarCompleto(false);
+});
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape' && mapaCompleto) pantallaCompleta(false);
+});
+
+// Red de ciclovías de Lima: se descarga una sola vez, al activarla.
+let mostrandoCiclovias = false;
+let cicloviasCargadas = false;
+async function alternarCiclovias(mostrar = !mostrandoCiclovias) {
+  mostrandoCiclovias = mostrar;
+  botonCiclovias.setAttribute('aria-pressed', String(mostrar));
+  try {
+    localStorage.setItem('verCiclovias', mostrar ? '1' : '0');
+  } catch {
+    // Sin almacenamiento: solo no se recuerda la preferencia.
+  }
+  if (mostrar && !cicloviasCargadas) {
+    botonCiclovias.classList.add('cargando');
+    try {
+      const { ciclovias } = await api('/api/ciclovias', {});
+      const lienzo = L.canvas({ pane: 'ciclovias' });
+      for (const [nombre, puntos] of ciclovias) {
+        L.polyline(puntos, { renderer: lienzo, pane: 'ciclovias', color: COLOR_TRAMO.ciclovia, weight: 3, opacity: 0.6, dashArray: '6 5' })
+          .bindTooltip(nombre || 'Ciclovía', { sticky: true })
+          .addTo(capaCiclovias);
+      }
+      cicloviasCargadas = true;
+    } catch (error) {
+      mostrandoCiclovias = false;
+      botonCiclovias.setAttribute('aria-pressed', 'false');
+      mostrarMensajes(el('p', { class: 'aviso aviso-error' }, `No pude cargar las ciclovías: ${error.message}`));
+    } finally {
+      botonCiclovias.classList.remove('cargando');
+    }
+  }
+  if (mostrandoCiclovias) capaCiclovias.addTo(mapa);
+  else capaCiclovias.remove();
+  actualizarLeyenda();
+}
+botonCiclovias.addEventListener('click', () => alternarCiclovias());
+
+// Leyenda: solo los tipos de vía que tiene la ruta elegida (y la red de ciclovías si está visible).
+let clasesRuta = [];
+const leyenda = L.control({ position: 'bottomleft' });
+leyenda.onAdd = () => {
+  const caja = L.DomUtil.create('div', 'leyenda-mapa');
+  L.DomEvent.disableClickPropagation(caja);
+  return caja;
+};
+let leyendaVisible = false;
+function actualizarLeyenda() {
+  const items = Object.keys(NOMBRE_LEYENDA)
+    .filter((c) => clasesRuta.includes(c))
+    .map((c) => el('span', { class: 'leyenda-item' }, el('i', { class: c === 'vereda' ? 'a-pie' : '', style: `background:${COLOR_TRAMO[c]}` }), NOMBRE_LEYENDA[c]));
+  if (mostrandoCiclovias) items.push(el('span', { class: 'leyenda-item' }, el('i', { class: 'otras' }), 'Otras ciclovías'));
+  if (!items.length) {
+    if (leyendaVisible) leyenda.remove();
+    leyendaVisible = false;
+    return;
+  }
+  if (!leyendaVisible) leyenda.addTo(mapa);
+  leyendaVisible = true;
+  leyenda.getContainer().replaceChildren(...items);
+}
 
 const puntos = { origen: null, destino: null };
 let modoMapa = null;
@@ -250,7 +388,10 @@ function limpiarRutas() {
   lineas = [];
   alertas = [];
   capaRutas.clearLayers();
+  capaTramos.clearLayers();
   capaAlertas.clearLayers();
+  clasesRuta = [];
+  actualizarLeyenda();
   $('resultados').replaceChildren();
 }
 
@@ -267,11 +408,32 @@ function estiloLinea(ruta, activa) {
   };
 }
 
+// La ruta elegida se pinta por tramos según el tipo de vía, sobre un borde blanco para que se lea en el mapa.
+function dibujarTramos(ruta) {
+  capaTramos.clearLayers();
+  const tramos = ruta.tramosPorClase ?? [];
+  for (const [desde, hasta, clase] of tramos) {
+    L.polyline(ruta.geometria.slice(desde, hasta + 1), {
+      color: COLOR_TRAMO[clase] ?? COLORES[ruta.tipos[0]],
+      weight: 6,
+      opacity: 1,
+      lineCap: 'round',
+      lineJoin: 'round',
+      dashArray: clase === 'vereda' ? '1 9' : null,
+      interactive: false,
+    }).addTo(capaTramos);
+  }
+  clasesRuta = [...new Set(tramos.map((t) => t[2]))];
+  actualizarLeyenda();
+}
+
 function seleccionar(i, ajustar = false) {
+  const porTramos = Boolean(rutas[i].tramosPorClase?.length);
   lineas.forEach((linea, k) => {
-    linea.setStyle(estiloLinea(rutas[k], k === i));
+    linea.setStyle(k === i && porTramos ? { color: '#ffffff', weight: 11, opacity: 0.95, dashArray: null } : estiloLinea(rutas[k], k === i));
     if (k === i) linea.bringToFront();
   });
+  dibujarTramos(rutas[i]);
   document.querySelectorAll('.ruta').forEach((tarjeta, k) => {
     tarjeta.classList.toggle('seleccionada', k === i);
     tarjeta.setAttribute('aria-current', k === i ? 'true' : 'false');
@@ -426,11 +588,17 @@ function empezarViaje(ev, i, ensayo) {
     return;
   }
   seleccionar(i);
+  // Durante el viaje el mapa ocupa toda la pantalla; al terminar vuelve como estaba.
+  const estabaCompleto = mapaCompleto;
+  pantallaCompleta(true);
   mapa.setZoom(17);
   iniciarViaje(rutas[i], {
     mapa,
     el,
     ensayo,
+    alTerminar: () => {
+      if (!estabaCompleto) pantallaCompleta(false);
+    },
     alRecalcular: (pos) => {
       if (!pos) return;
       $('origen').value = 'Tu ubicación';
@@ -569,3 +737,10 @@ api('/api/estado')
     }
   })
   .catch(() => {});
+
+// Recordar si la persona dejó visible la red de ciclovías.
+try {
+  if (localStorage.getItem('verCiclovias') === '1') alternarCiclovias(true);
+} catch {
+  // Sin almacenamiento disponible.
+}

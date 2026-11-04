@@ -97,7 +97,7 @@ export function enlaceSeguirEnGoogle(geometria, acumulado, recorrido, modo = 'dr
   return `https://www.google.com/maps/dir/?${q}`;
 }
 
-export function iniciarViaje(ruta, { mapa, el, ensayo, alRecalcular }) {
+export function iniciarViaje(ruta, { mapa, el, ensayo, alRecalcular, alTerminar }) {
   const P = ruta.geometria.map(aXY);
   const acumulado = [0];
   for (let i = 1; i < P.length; i++) acumulado.push(acumulado[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
@@ -376,6 +376,11 @@ export function iniciarViaje(ruta, { mapa, el, ensayo, alRecalcular }) {
     setTimeout(() => {
       marcador.remove();
       caja.hidden = true;
+      try {
+        alTerminar?.();
+      } catch (error) {
+        console.warn('Al cerrar el viaje:', error);
+      }
     }, espera);
   }
 }
