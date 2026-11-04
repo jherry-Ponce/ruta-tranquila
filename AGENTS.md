@@ -14,6 +14,10 @@ Ruta Tranquila: app web que busca rutas por calles tranquilas en Lima para quien
 - `npm test`: pruebas con `node --test`. Deben pasar antes de cada push.
 - `npm run datos`: vuelve a descargar las vías de OSM a `data/vias-principales-lima.json`.
 
+## Forma de trabajo
+
+- Antes de implementar, analizar y presentar opciones, plan y ejemplos. Esperar el acuerdo del usuario y luego ejecutar el alcance aprobado.
+
 ## Reglas del proyecto
 
 - **Sin dependencias.** Node >= 22.9 puro en el servidor; en el navegador solo Leaflet por CDN. No agregar paquetes npm sin acordarlo.
@@ -32,9 +36,10 @@ Ruta Tranquila: app web que busca rutas por calles tranquilas en Lima para quien
 - Bici: `bonoCiclovia` en `config/tranquilidad.js`. Se ajusta el **origen** a una ciclovía solo si se sale por una avenida (`server/snap-ciclovia.js`); el **destino** nunca, porque producía rodeos largos.
 - Modo viaje (`public/viaje.js`): la guía es por voz porque el novato no va con el celular en la mano. Un navegador no recibe GPS con la pantalla apagada; por eso hay modo bolsillo (pantalla negra encendida con Wake Lock), retomar al volver y "Seguir con Google Maps". La solución completa en segundo plano requeriría una app nativa.
 
+- Tiempo total: incluye la caminata inicial a la ciclovía. Se conserva la duración del recorrido y se entrega `duracionTotalSegundos` por separado; la caminata sigue siendo una estimación en línea recta, no una ruta peatonal.
+- Semáforos: solo se reduce la penalización si todas las calzadas detectadas en el cruce tienen una señal OSM en esa misma vía, a no más de 35 m. Sin coincidencia significa información desconocida. Se comparan las alternativas existentes; no se fuerza el paso por una señal.
+- Giros: se usan maniobras ORS, no curvas geométricas. Se toleran 2 giros ponderados por km (mínimo 4 por viaje), con peso adicional para giros cerrados, vueltas en U y maniobras separadas por menos de 80 m. El descuento máximo es 12 puntos; ajustes en `config/tranquilidad.js`.
+
 ## Ideas abiertas
 
-- Sumar los minutos a pie de la salida al tiempo total.
-- Preferir cruces con semáforo (OSM `highway=traffic_signals`).
-- Penalizar rutas con exceso de giros.
 - App nativa o TWA con ubicación en segundo plano para guiar con la pantalla apagada.

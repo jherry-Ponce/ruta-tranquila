@@ -164,6 +164,9 @@ function agruparCruces(toques, tramos) {
     // OSM a veces escribe el mismo nombre con distinta mayúscula ("Av. del Parque Sur" / "Av. Del Parque Sur").
     const nombres = [...new Map(g.toques.filter((t) => t.via.nombre).map((t) => [t.via.nombre.toLowerCase(), t.via.nombre])).values()];
     const medio = g.toques[Math.floor(g.toques.length / 2)];
-    return { clase, nombres, en: g.desde, punto: aGrados(medio.punto) };
+    // Cada calzada necesita una señal próxima perteneciente a esa misma vía.
+    // Sin coincidencia, el estado del semáforo es desconocido.
+    const semaforo = g.toques.every((t) => (t.via.semaforos ?? []).some((p) => distancia(p, t.punto) <= 35));
+    return { clase, nombres, en: g.desde, punto: aGrados(medio.punto), semaforo };
   });
 }

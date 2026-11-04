@@ -63,7 +63,7 @@ export function calcularPuntaje(analisis, trafico, cfg, vehiculo = 'auto') {
   const escala = Math.min(1, cfg.kmReferenciaCruces / Math.max(total / 1000, 0.001));
   const penalCruces = Math.min(
     cfg.topePenalizacionCruces,
-    Math.round(escala * analisis.cruces.reduce((s, c) => s + (cfg.penalizacionCruce[c.clase] ?? 0), 0)),
+    Math.round(escala * analisis.cruces.reduce((s, c) => s + (cfg.penalizacionCruce[c.clase] ?? 0) * (c.semaforo ? cfg.factorCruceConSemaforo : 1), 0)),
   );
   const tramosTrafico = trafico?.confiable ? trafico.tramos : [];
   const penalTrafico = Math.min(
@@ -71,7 +71,8 @@ export function calcularPuntaje(analisis, trafico, cfg, vehiculo = 'auto') {
     tramosTrafico.reduce((s, t) => s + (cfg.penalizacionTrafico[t.gravedad] ?? 0), 0),
   );
 
-  const valor = Math.max(0, Math.min(100, Math.round(base + bonoCiclovia - penalCruces - penalTrafico)));
+  const penalGiros = analisis.giros?.penalizacion ?? 0;
+  const valor = Math.max(0, Math.min(100, Math.round(base + bonoCiclovia - penalCruces - penalTrafico - penalGiros)));
   const etiqueta = cfg.etiquetas.find((e) => valor >= e.desde)?.texto ?? '';
   const pct = porcentajes(analisis.metrosPorClase, total);
 
@@ -85,11 +86,14 @@ export function calcularPuntaje(analisis, trafico, cfg, vehiculo = 'auto') {
     explicacion += ` Para bici o monopatín, el uso de ciclovías protegidas suma +${bonoCiclovia} puntos.`;
   }
 
+  const conSemaforo = analisis.cruces.filter((c) => c.semaforo).length;
+  if (conSemaforo) explicacion += ` ${conSemaforo} ${conSemaforo === 1 ? 'cruce con semáforo registrado' : 'cruces con semáforo registrado'} en OSM.`;
+  if (analisis.giros) explicacion += ` ${analisis.giros.cantidad} maniobras de giro${penalGiros ? `; su complejidad resta ${penalGiros} puntos` : ''}.`;
   return {
     valor,
     etiqueta,
     explicacion,
     porcentajes: pct,
-    desglose: { base: Math.round(base), ciclovias: bonoCiclovia, cruces: -penalCruces, trafico: -penalTrafico },
+    desglose: { base: Math.round(base), ciclovias: bonoCiclovia, cruces: -penalCruces, trafico: -penalTrafico, giros: -penalGiros },
   };
 }

@@ -29,10 +29,11 @@ const consulta = `[out:json][timeout:240];
 (
   way["highway"~"^(motorway|trunk|primary|secondary)(_link)?$"](${bbox});
   way["highway"="cycleway"](${bbox});
+  node["highway"="traffic_signals"](${bbox});
   way["highway"~"${menores}"]["bridge"]["bridge"!="no"](${bbox});
   way["highway"~"${menores}"]["tunnel"]["tunnel"!="no"](${bbox});
 );
-out tags geom qt;`;
+out body geom qt;`;
 
 function esDesnivel(tags) {
   const puente = tags.bridge && tags.bridge !== 'no';
@@ -41,11 +42,14 @@ function esDesnivel(tags) {
   return Boolean(puente || tunel || capa);
 }
 
+let semaforosPorId = new Map();
+
 function convertir(elemento) {
   const tags = elemento.tags ?? {};
   const base = tags.highway.replace(/_link$/, '');
   const via = {
     n: tags.name ?? '',
+    s: (elemento.nodes ?? []).filter((id) => semaforosPorId.has(id)).map((id) => semaforosPorId.get(id)),
     c: CLASES[base] ?? 'menor',
     g: elemento.geometry.map((p) => [Number(p.lon.toFixed(6)), Number(p.lat.toFixed(6))]),
   };
@@ -88,6 +92,7 @@ async function consultarOverpass() {
 }
 
 const json = await consultarOverpass();
+semaforosPorId = new Map(json.elements.filter((e) => e.type === 'node' && e.tags?.highway === 'traffic_signals').map((e) => [e.id, [e.lon, e.lat]]));
 const vias = json.elements
   .filter((e) => e.type === 'way' && e.geometry?.length >= 2)
   .map(convertir);

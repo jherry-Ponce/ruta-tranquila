@@ -12,9 +12,10 @@ import { zonasAEvitar } from './zonas.js';
 import { medirTrafico, hayKeyTomTom } from './trafico.js';
 import { analizarRuta } from './analisis.js';
 import { calcularPuntaje } from './puntaje.js';
-import { armarPasos, abreviar, formatoDistancia } from './pasos.js';
+import { armarPasos, abreviar, formatoDistancia, avisoCruce } from './pasos.js';
 import { evaluarHorario } from './horario.js';
 import { aMetros, distancia, fraccionCompartida } from './geo.js';
+import { analizarGiros } from './giros.js';
 import { snapACiclovia } from './snap-ciclovia.js';
 
 const ALTERNATIVAS = { target_count: 3, weight_factor: 1.6, share_factor: 0.6 };
@@ -115,7 +116,7 @@ function puntosCriticos(ruta, vehiculo, snapInicio) {
       tipo: 'cruce',
       clase: c.clase,
       titulo: `Cruce con ${c.nombres.length ? c.nombres.map(abreviar).join(' y ') : `una ${NOMBRE_CLASE[c.clase]}`}`,
-      detalle: `Cruce con ${NOMBRE_CLASE[c.clase]}: hazlo con el semáforo en verde o cuando esté totalmente despejado.`,
+      detalle: avisoCruce(c),
       lon: c.punto[0],
       lat: c.punto[1],
       km: c.en / 1000,
@@ -168,7 +169,7 @@ function resumen(ruta, nota) {
   return {
     origen: ruta.origen,
     km: Math.round(ruta.distancia / 100) / 10,
-    minutos: Math.round(ruta.duracion / 60),
+    minutos: Math.round((ruta.duracion + (ruta.caminataSegundos ?? 0)) / 60),
     puntaje: ruta.puntaje?.valor ?? null,
     cruces: ruta.analisis?.cruces.length ?? null,
     nota,
@@ -232,16 +233,20 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
   if (!candidatas.length) throw new ErrorServicio('No encontré una ruta que evite las avenidas entre esos puntos.', 422);
 
   for (const ruta of candidatas) {
+    ruta.caminataSegundos = (snapInicio?.minutosCaminata ?? 0) * 60;
     ruta.analisis = analizarRuta(ruta.coordenadas, ruta.waytype, red);
+    ruta.analisis.giros = analizarGiros(ruta.pasos, ruta.analisis.acumulado, cfg.giros);
     ruta.puntaje = calcularPuntaje(ruta.analisis, null, cfg, vehiculo);
   }
 
+  const caminataSegundos = (snapInicio?.minutosCaminata ?? 0) * 60;
+  const tiempoTotal = (r) => (r.trafico?.confiable ? r.trafico.duracionSegundos : r.duracion) + caminataSegundos;
   const masRapida = candidatas.reduce((m, r) => (r.duracion < m.duracion ? r : m));
   const tope = cfg.tiempoMaximo[nivel];
-  const limite = masRapida.duracion * tope.factor + tope.minutosExtra * 60;
+  const limite = tiempoTotal(masRapida) * tope.factor + tope.minutosExtra * 60;
   const unicas = [];
   for (const ruta of candidatas.toSorted((a, b) => b.puntaje.valor - a.puntaje.valor || a.duracion - b.duracion)) {
-    if (ruta.duracion > limite) {
+    if (tiempoTotal(ruta) > limite) {
       comparacion.push(resumen(ruta, 'descartada: demora demasiado'));
     } else if (unicas.some((u) => sonIguales(u, ruta))) {
       comparacion.push(resumen(ruta, 'descartada: casi igual a otra'));
@@ -281,7 +286,7 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
 
   // Con el tráfico, el orden puede cambiar: se vuelve a elegir con los mismos candidatos.
   // Una ruta que otra supera a la vez en tiempo y en tranquilidad no le sirve a nadie y se quita.
-  const tiempo = (r) => (r.trafico?.confiable ? r.trafico.duracionSegundos : r.duracion);
+  const tiempo = tiempoTotal;
   const superada = (r, o) =>
     tiempo(o) <= tiempo(r) && o.puntaje.valor >= r.puntaje.valor && (tiempo(o) < tiempo(r) || o.puntaje.valor > r.puntaje.valor);
   for (const r of seleccion.filter((r) => seleccion.some((o) => o !== r && superada(r, o)))) {
@@ -302,6 +307,7 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
       tipos,
       distanciaMetros: Math.round(r.distancia),
       duracionSegundos: Math.round(r.duracion),
+      duracionTotalSegundos: Math.round(tiempoTotal(r)),
       trafico: r.trafico
         ? { confiable: r.trafico.confiable, duracionSegundos: r.trafico.duracionSegundos, retrasoSegundos: r.trafico.retrasoSegundos }
         : null,

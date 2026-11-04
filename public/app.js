@@ -298,7 +298,7 @@ function nivel(valor) {
   return 1;
 }
 
-const tiempoDe = (ruta) => (ruta.trafico?.confiable ? ruta.trafico.duracionSegundos : ruta.duracionSegundos);
+const tiempoDe = (ruta) => ruta.duracionTotalSegundos ?? (ruta.trafico?.confiable ? ruta.trafico.duracionSegundos : ruta.duracionSegundos);
 
 function tarjeta(ruta, i) {
   const tipo = ruta.tipos[0];
@@ -368,6 +368,7 @@ function tarjeta(ruta, i) {
           { class: 'ruta-datos' },
           `${formatoKm(ruta.distanciaMetros)} · ${formatoTiempo(tiempo)} ${conTrafico ? 'con el tráfico de ahora' : 'sin contar tráfico'}`,
         ),
+        ruta.caminataInicial && el('p', { class: 'ruta-datos' }, `Total aprox.: ${ruta.caminataInicial.minutos} min caminando + ${formatoTiempo(ruta.duracionSegundos)} en bici. Caminata estimada en línea recta.`),
         extra > 0 && el('p', { class: 'ruta-datos' }, `${extra} min más que la más rápida`),
       ),
       el(

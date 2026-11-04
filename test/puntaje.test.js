@@ -63,3 +63,15 @@ test('para bici o monopatín una ruta con más ciclovía puede superar a una con
   assert.equal(biciB.desglose.ciclovias, cfg.bonoCiclovia.maximo);
   assert.match(biciB.explicacion, /ciclovías protegidas suma \+15 puntos/);
 });
+
+test('un semáforo reduce parcialmente la penalización y los giros restan', () => {
+  const desconocido = calcularPuntaje(analisis({ residencial: 3000 }, [{ clase: 'primaria' }]), null, cfg);
+  const datos = analisis({ residencial: 3000 }, [{ clase: 'primaria', semaforo: true }]);
+  const señalizado = calcularPuntaje(datos, null, cfg);
+  assert.ok(señalizado.valor > desconocido.valor);
+  assert.ok(señalizado.desglose.cruces < 0);
+  datos.giros = { cantidad: 12, penalizacion: 6 };
+  const complejo = calcularPuntaje(datos, null, cfg);
+  assert.equal(complejo.valor, señalizado.valor - 6);
+  assert.equal(complejo.desglose.giros, -6);
+});

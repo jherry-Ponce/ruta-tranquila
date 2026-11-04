@@ -46,6 +46,12 @@ function frase(paso, calle) {
   }
 }
 
+export function avisoCruce(cruce) {
+  return cruce.semaforo
+    ? 'Semáforo registrado en OSM: espera la señal que corresponda a tu paso y comprueba que el cruce esté despejado.'
+    : 'Sin información de semáforo: comprueba la señalización y cruza solo cuando sea seguro.';
+}
+
 export function armarPasos(pasosOrs, coordenadas, analisis) {
   return pasosOrs.map((paso) => {
     const [desde, hasta] = paso.way_points;
@@ -71,7 +77,7 @@ export function armarPasos(pasosOrs, coordenadas, analisis) {
     // Los cruces se asignan al paso en cuyo recorrido ocurren.
     for (const cruce of analisis.cruces.filter((c) => c.en >= inicio && c.en < fin && PRINCIPALES.has(c.clase))) {
       const via = cruce.nombres.length ? cruce.nombres.map(abreviar).join(' / ') : 'una avenida';
-      avisos.push(`Cruzas ${via}: hazlo con el semáforo en verde o cuando esté despejado.`);
+      avisos.push(`Cruzas ${via}: ${avisoCruce(cruce)}`);
     }
 
     const [lon, lat] = coordenadas[desde];

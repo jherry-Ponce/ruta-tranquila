@@ -145,6 +145,7 @@ test('en bici, si sale por una avenida, ajusta el origen a una ciclovía cercana
   assert.equal(aviso.lon, origen.lon);
   assert.equal(aviso.lat, origen.lat);
   assert.ok(aviso.titulo.startsWith(`Camina ${formatoDistancia(snap.distanciaCaminata)} hasta la ciclovía`));
+  assert.equal(primera.duracionTotalSegundos, primera.duracionSegundos + snap.minutosCaminata * 60);
   assert.equal(primera.caminataInicial.metros, snap.distanciaCaminata);
   assert.equal(primera.caminataInicial.geometria.length, 2);
 });
@@ -155,6 +156,7 @@ test('en bici, si sale de una calle tranquila, no cambia el origen', async () =>
   const destino = { lon: calma.at(-1)[0], lat: calma.at(-1)[1] };
   const resultado = await planificar({ origen, destino, salida: '2026-11-07T11:00', vehiculo: 'bici' }, { red, cfg });
 
+  assert.ok(resultado.rutas.every((r) => r.duracionTotalSegundos === r.duracionSegundos));
   assert.deepEqual(pedidos[0].cuerpo.coordinates[0], [origen.lon, origen.lat]);
   assert.ok(resultado.rutas.every((r) => r.caminataInicial === null && !r.puntosCriticos.some((p) => p.tipo === 'caminata')));
 });

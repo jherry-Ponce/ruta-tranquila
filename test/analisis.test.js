@@ -64,3 +64,16 @@ test('una calle lejos de las avenidas queda como residencial', () => {
   assert.equal(r.segmentos[0].clase, 'residencial');
   assert.equal(r.cruces.length, 0);
 });
+
+test('asocia únicamente señales próximas sobre la misma avenida del cruce', () => {
+  const tramo = tramoRecto('Avenida Javier Prado Este', 'primaria');
+  const coords = rutaPerpendicular(tramo);
+  // Usa los cruces reales, con señales controladas para aislar la asociación.
+  const analizarCon = (ubicar) => analizarRuta(coords, todoResidencial(coords), {
+    ...red, vias: red.vias.map((v) => ({ ...v, semaforos: ubicar(v) })),
+  }).cruces.find((c) => c.nombres.includes('Avenida Javier Prado Este'));
+  const enMetros = tramo[0].map((v, i) => (v + tramo[1][i]) / 2);
+  assert.equal(analizarCon(() => [enMetros]).semaforo, true);
+  assert.equal(analizarCon(() => [[enMetros[0] + 200, enMetros[1]]]).semaforo, false);
+  assert.equal(analizarCon((v) => v.nombre.includes('Javier Prado') ? [] : [enMetros]).semaforo, false);
+});

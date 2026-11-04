@@ -16,6 +16,7 @@ export function cargarRed(archivo = ARCHIVO_VIAS) {
   const datos = JSON.parse(readFileSync(archivo, 'utf8'));
   const vias = datos.vias.map((v) => ({
     nombre: v.n,
+    semaforos: (v.s ?? []).map(aMetros),
     clase: v.c,
     ramal: Boolean(v.r),
     desnivel: Boolean(v.d),

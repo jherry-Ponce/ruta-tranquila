@@ -29,6 +29,16 @@ export default {
     primaria: 5,
     secundaria: 2,
   },
+  factorCruceConSemaforo: 0.6, // Reduce parcialmente la penalización; no elimina el riesgo.
+  // Tolera giros normales según la distancia; limita su peso frente a las avenidas.
+  giros: {
+    porKmSinPenalizar: 2,
+    minimoSinPenalizar: 4,
+    puntosPorExceso: 1,
+    puntosPorGiroSeguido: 0.5,
+    distanciaSeguidos: 80,
+    tope: 12,
+  },
   kmReferenciaCruces: 5,
   topePenalizacionCruces: 30,
 
