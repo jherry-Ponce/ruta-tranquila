@@ -39,16 +39,25 @@ async function buscarTomTom(texto, limites, sugerencias) {
     btmRight: limites.sur + ',' + limites.este,
   });
   const json = await pedirTomTom(BASE + '/search/' + encodeURIComponent(texto) + '.json?' + q);
-  const consulta = normalizarNombre(texto);
-  const prioridad = (lugar) => {
-    if (lugar.tipo !== 'POI') return 3;
-    const nombre = normalizarNombre(lugar.nombre);
+  const consultaCompleta = normalizarNombre(texto);
+  const rango = (nombre, consulta) => {
     if (nombre === consulta) return 0;
     if (nombre.replace(/^centro comercial /, '') === consulta) return 1;
     const palabras = consulta.split(' ');
     const coincide = palabras.every((p) => nombre.split(' ').some((n) => n.startsWith(p)));
     if (coincide && (nombre === palabras[0] || nombre.startsWith(palabras[0] + ' '))) return 1.5;
     return coincide ? 2 : 3;
+  };
+  const prioridad = (lugar) => {
+    if (lugar.tipo !== 'POI') return 3;
+    const nombre = normalizarNombre(lugar.nombre);
+    // "Larcomar Miraflores": "Miraflores" es el distrito del lugar, no parte de su nombre. Si no se quita,
+    // gana un hospedaje llamado "...Larcomar Miraflores" sobre el centro comercial "Larcomar". Se compara
+    // con y sin el distrito y vale la mejor, porque a veces el distrito sí es parte del nombre
+    // (Plaza San Miguel, en San Miguel).
+    const delDistrito = new Set(normalizarNombre(lugar.zona ?? '').split(' ').concat('lima'));
+    const sinDistrito = consultaCompleta.split(' ').filter((p) => !delDistrito.has(p)).join(' ');
+    return Math.min(rango(nombre, consultaCompleta), sinDistrito ? rango(nombre, sinDistrito) : 3);
   };
   const vistos = new Set();
   return (json.results ?? []).map((r) => {

@@ -58,9 +58,10 @@ export default {
 
   // Una ruta tranquila puede tardar más que la rápida, pero no sin límite:
   // se descartan las que superen (tiempo de la rápida × factor) + minutosExtra.
-  // Las calles tranquilas de Lima son lentas: en la ruta de ejemplo la más tranquila tarda 2,5 veces la rápida.
+  // Las calles tranquilas de Lima son lentas, pero un factor de 2,5 dejaba pasar rodeos absurdos (Magdalena →
+  // Larcomar: 12,8 km y 32 giros contra 6,3 km por el malecón). Los 10 minutos extra cubren los viajes cortos.
   tiempoMaximo: {
-    principiante: { factor: 2.5, minutosExtra: 10 },
+    principiante: { factor: 1.6, minutosExtra: 10 },
     intermedio: { factor: 1.6, minutosExtra: 5 },
     normal: { factor: 1.3, minutosExtra: 3 },
   },

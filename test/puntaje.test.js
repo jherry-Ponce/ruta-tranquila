@@ -93,3 +93,14 @@ test('el bono aplicado completa la base hasta 100 y el desglose coincide con el 
   assert.match(p.explicacion, /suma \+2 puntos/);
   assert.equal(Object.values(p.desglose).reduce((s, v) => s + v, 0), p.valor);
 });
+
+test('entre caminos del mismo viaje, un rodeo largo no diluye sus cruces', () => {
+  const cruces = Array.from({ length: 6 }, () => ({ clase: 'primaria' }));
+  const corto = analisis({ residencial: 5000 }, cruces);
+  const largo = analisis({ residencial: 12000 }, cruces);
+  const solo = calcularPuntaje(largo, null, cfg);
+  largo.distanciaReferencia = 5000;
+  const comparado = calcularPuntaje(largo, null, cfg);
+  assert.equal(comparado.desglose.cruces, calcularPuntaje(corto, null, cfg).desglose.cruces);
+  assert.ok(comparado.desglose.cruces < solo.desglose.cruces);
+});

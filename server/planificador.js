@@ -62,13 +62,26 @@ async function conAlternativas(perfil, cuerpo, origen) {
 
 // Una ruta que evita recorrer ciertas clases de vía. Si ORS la rechaza (por ejemplo porque las zonas
 // dejan aislado un punto), se descarta sin cortar la búsqueda.
-async function sinAvenidas(cuerpo, red, extremos, clases, preference, origen, perfil = 'driving-car', zonasExtra = []) {
+// Con `alternativas`, ORS entrega hasta 3 caminos en el mismo pedido (cuenta como uno en la cuota) y se
+// devuelve una lista. Así aparecen opciones que la preferencia sola no elige, como ir por el malecón.
+async function sinAvenidas(cuerpo, red, extremos, clases, preference, origen, perfil = 'driving-car', zonasExtra = [], alternativas = false) {
   const zonas = [...(clases.size ? zonasAEvitar(red, extremos, clases) : []), ...zonasExtra];
   const opciones = zonas.length ? { avoid_polygons: { type: 'MultiPolygon', coordinates: zonas } } : {};
   if (perfil !== 'driving-car') opciones.avoid_features = ['steps'];
+  const pedido = { ...cuerpo, preference, options: opciones };
   try {
-    const fc = await pedirRutas(perfil, { ...cuerpo, preference, options: opciones });
-    return { ruta: leerRuta(fc.features[0], origen) };
+    if (alternativas) {
+      try {
+        const fc = await pedirRutas(perfil, { ...pedido, alternative_routes: ALTERNATIVAS });
+        return fc.features.map((f, i) => ({ ruta: leerRuta(f, i === 0 ? origen : `${origen}-alt${i}`) }));
+      } catch (error) {
+        // Las alternativas tienen límites propios (por ejemplo de distancia): se reintenta sin ellas.
+        if (ERRORES_DEFINITIVOS.has(error.codigo)) throw error;
+      }
+    }
+    const fc = await pedirRutas(perfil, pedido);
+    const ruta = { ruta: leerRuta(fc.features[0], origen) };
+    return alternativas ? [ruta] : ruta;
   } catch (error) {
     if (ERRORES_DEFINITIVOS.has(error.codigo) && error.codigo !== 2009 && error.codigo !== 2010) throw error;
     return { descartada: `${origen}: ORS no pudo calcularla (${error.message})` };
@@ -300,22 +313,22 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
     // Bicicleta o monopatín (R.M. 127-2021-MTC: solo ciclovías, calles o jirones): nunca por avenidas.
     pedidos = [
       // Sin zonas: el perfil de bici elige por sí mismo las ciclovías, incluso las que van junto a una avenida.
-      sinAvenidas(cuerpo, red, extremos, new Set(['autopista']), 'recommended', 'bici-ciclovias', 'cycling-regular', zonasExtra),
-      sinAvenidas(cuerpo, red, extremos, medianas, 'recommended', 'bici', 'cycling-regular', zonasExtra),
-      sinAvenidas(cuerpo, red, extremos, medianas, 'shortest', 'bici-corta', 'cycling-regular', zonasExtra),
+      sinAvenidas(cuerpo, red, extremos, new Set(['autopista']), 'recommended', 'bici-ciclovias', 'cycling-regular', zonasExtra, true),
+      sinAvenidas(cuerpo, red, extremos, medianas, 'recommended', 'bici', 'cycling-regular', zonasExtra, true),
+      sinAvenidas(cuerpo, red, extremos, medianas, 'shortest', 'bici-corta', 'cycling-regular', zonasExtra, true),
     ];
   } else {
     // La moto eléctrica nunca va por vías rápidas, ni siquiera en la ruta más rápida.
     const base = vehiculo === 'motoElectrica' ? new Set(['autopista']) : new Set();
     const rapida = base.size
-      ? sinAvenidas(cuerpo, red, extremos, base, 'fastest', 'rapida', 'driving-car', zonasExtra)
+      ? sinAvenidas(cuerpo, red, extremos, base, 'fastest', 'rapida', 'driving-car', zonasExtra, true)
       : conAlternativas('driving-car', cuerpo, 'rapida').then((rutas) => rutas.map((ruta) => ({ ruta })));
     const variantes = {
       principiante: [[grandes, 'shortest', 'sin-grandes-corta'], [medianas, 'shortest', 'sin-medianas-corta']],
       intermedio: [[grandes, 'fastest', 'sin-grandes'], [grandes, 'shortest', 'sin-grandes-corta']],
       normal: [[grandes, 'fastest', 'sin-grandes']],
     }[nivel];
-    pedidos = [rapida, ...variantes.map(([clases, pref, id]) => sinAvenidas(cuerpo, red, extremos, clases, pref, id, 'driving-car', zonasExtra))];
+    pedidos = [rapida, ...variantes.map(([clases, pref, id]) => sinAvenidas(cuerpo, red, extremos, clases, pref, id, 'driving-car', zonasExtra, true))];
   }
   const resultados = (await Promise.all(pedidos)).flat();
 
@@ -331,7 +344,13 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
     ajustarDuracion(ruta, vehiculo, ajusteRitmo);
     ruta.caminataSegundos = (snapInicio?.minutosCaminata ?? 0) * 60;
     ruta.analisis = analizarRuta(ruta.coordenadas, ruta.waytype, red, vehiculo);
-    ruta.analisis.giros = analizarGiros(ruta.pasos, ruta.analisis.acumulado, cfg.giros);
+  }
+  // Cruces y giros se miden contra la misma distancia en todas las candidatas (la más corta): lo que vive
+  // la persona es cuántos cruces y giros tiene el viaje, y un rodeo no debe "diluirlos" en más kilómetros.
+  const distanciaReferencia = Math.min(...candidatas.map((r) => r.analisis.distancia || Infinity));
+  for (const ruta of candidatas) {
+    if (Number.isFinite(distanciaReferencia)) ruta.analisis.distanciaReferencia = distanciaReferencia;
+    ruta.analisis.giros = analizarGiros(ruta.pasos, ruta.analisis.acumulado, cfg.giros, Number.isFinite(distanciaReferencia) ? distanciaReferencia / 1000 : null);
     ruta.puntaje = calcularPuntaje(ruta.analisis, null, cfg, vehiculo);
   }
 

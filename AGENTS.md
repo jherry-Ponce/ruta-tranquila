@@ -50,6 +50,11 @@ aprendiendo a manejar (auto, moto eléctrica) o va en bici/monopatín. Producci�
 - Tiempo total: incluye la caminata inicial a la ciclovía. Se conserva la duración del recorrido y se entrega `duracionTotalSegundos` por separado; la caminata sigue siendo una estimación en línea recta, no una ruta peatonal.
 - Semáforos: solo se reduce la penalización si todas las calzadas detectadas en el cruce tienen una señal OSM en esa misma vía, a no más de 35 m. Sin coincidencia significa información desconocida. Se comparan las alternativas existentes; no se fuerza el paso por una señal.
 - Giros: se usan maniobras ORS, no curvas geométricas. Se toleran 2 giros ponderados por km (mínimo 4 por viaje), con peso adicional para giros cerrados, vueltas en U y maniobras separadas por menos de 80 m. El descuento máximo es 12 puntos; ajustes en `config/tranquilidad.js`.
+- Distancia común (2026-11-04): entre candidatas del mismo viaje, cruces (por cada 5 km) y giros tolerados (2 por km) se miden con la distancia de la candidata **más corta** (`analisis.distanciaReferencia`), no con la propia. Antes un rodeo largo "diluía" sus cruces y ganaba giros gratis: Magdalena → Larcomar recomendaba 12,8 km con 15 cruces y 32 giros frente a 6,3 km por el malecón con 2 cruces. La práctica sigue con su propia distancia.
+- Tiempo máximo de principiante: 1,6 × la más rápida + 10 min (antes 2,5).
+- Alternativas: cada variante pide `alternative_routes` a ORS (hasta 3 en el mismo pedido; si falla, se repite sin ellas). Práctica y `/api/tramo` no las usan.
+- Sin ruta tranquila: si la mejor queda bajo 40, la tarjeta dice "La menos difícil" y un aviso lo explica; si es por el tráfico de ahora (sin él llegaría a 40), el aviso lo dice así.
+- Moto eléctrica por avenidas rápidas: el usuario va a 40 km/h por la Costanera, por la derecha y junto a otras motos eléctricas, y no quiere que se excluya. No se usa `maxspeed` para quitar vías. El scooter sigue junto con la bici.
 
 - Puntaje: el bono de ciclovía solo completa hasta 100 la base redondeada del recorrido, antes de restar cruces, tráfico y giros. El desglose muestra el bono aplicado, no el teórico; así los riesgos no desaparecen al saturar en 100.
 - Calibración: `npm run calibrar` compara casos sintéticos de referencia y comprueba su orden esperado. No representan trayectos reales ni validación de seguridad en campo; para ajustar pesos con Lima se necesitan recorridos revisados por el usuario.
@@ -72,7 +77,7 @@ aprendiendo a manejar (auto, moto eléctrica) o va en bici/monopatín. Producci�
 ## Búsqueda de lugares por nombre
 
 - Desde y Hasta usan TomTom Fuzzy Search (/search/2/search), que combina direcciones y puntos de interés. El endpoint /geocode no encontraba Plaza San Miguel por nombre. Se conservan las ubicaciones confirmadas y enlaces de Maps antes de consultar al proveedor, y ORS como respaldo.
-- Se consultan 12 resultados limitados a Lima/Callao; se devuelven hasta 6 sugerencias o 5 resultados finales. Nombre completo coincidente primero, luego el centro comercial equivalente y nombres principales que incluyen las palabras consultadas; se conserva el orden del proveedor en empates. No se fija Plaza San Miguel a mano.
+- Se consultan 12 resultados limitados a Lima/Callao; se devuelven hasta 6 sugerencias o 5 resultados finales. Nombre completo coincidente primero, luego el centro comercial equivalente y nombres principales que incluyen las palabras consultadas; se conserva el orden del proveedor en empates. No se fija Plaza San Miguel a mano. Las palabras del distrito del resultado no cuentan como parte del nombre: se compara con la consulta completa y sin el distrito, y vale la mejor. "Larcomar Miraflores" daba un hospedaje "...Larcomar Miraflores" a 500 m; "Plaza San Miguel" sigue funcionando.
 - Sugerencias: nombre, dirección y distrito. La etiqueta del punto conserva nombre y dirección al seleccionarlo. Los POI no se marcan como puerta exacta; las direcciones Point Address mantienen su indicador previo.
 - Pruebas reales: Plaza San Miguel aparece primero; Hospital Rebagliati se encuentra por nombre; Juan de Aliaga 457 y Manuel Candamo 820 siguen funcionando. Pruebas simuladas cubren orden, límites, duplicados, respaldo y direcciones numeradas.
 - Fuente: https://docs.tomtom.com/search-api/documentation/search-service/fuzzy-search .
@@ -107,6 +112,9 @@ aprendiendo a manejar (auto, moto eléctrica) o va en bici/monopatín. Producci�
 
 - Elegidas por el usuario tras recorrer cada tipo de usuario: tarjeta resumida, dónde estacionar al llegar (auto y bici), mapa oscuro de noche (general) y aviso de luces en bici. Moto eléctrica ya quedaba cubierta con batería y lugares a evitar.
   Pendientes no elegidas: auto mecánico y subidas, gibas (`traffic_calming`), cuestas fuertes como puntos críticos y superficie (`surface`) para ruedas pequeñas.
+- Análisis del 2026-11-04 (La Paz 2551 ↔ Juan de Aliaga 457, Juan de Aliaga → Candamo 820, Juan de Aliaga → Larcomar).
+  Bici elige bien: el malecón a Larcomar (67 % ciclovía, 0 cruces grandes) supera al corredor Javier Prado–Salaverry–Dos de Mayo–Arequipa–Larco que usaba el usuario (18 cruces, 6 grandes).
+  A Candamo en auto no hay ruta tranquila: hay que cruzar Salaverry, Arenales, Arequipa, Petit Thouars e Iquitos.
 - Tarjeta: arriba solo tiempo, batería, ritmo, puntaje, barra y una línea `resumenCriticos` (cruces, tramos, tráfico, caminata). Porcentajes, explicación, puntos críticos y pasos van en "Ver detalle". El aviso de vías rápidas sigue visible.
 - Estacionamientos: `data/estacionamientos-lima.json`, de `npm run datos:estacionamientos`; original en `referencias/osm-estacionamientos-original.json.gz`.
   Datos de la réplica OSM del 2026-07-28: 2842 lugares, de ellos 838 de autos, 88 de bicis y 7 de motos en Lima moderna. Muy pocos tienen nombre.

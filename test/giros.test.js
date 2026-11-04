@@ -19,3 +19,11 @@ test('normaliza por distancia y limita el descuento máximo', () => {
   assert.ok(medir(Array(12).fill(0), 200, 10000).penalizacion < medir(Array(12).fill(0)).penalizacion);
   assert.equal(medir(Array(40).fill(9), 10).penalizacion, cfg.giros.tope);
 });
+
+test('con una distancia de referencia, un rodeo no gana giros sin penalizar', () => {
+  const pasos = Array.from({ length: 20 }, (_, i) => ({ type: 1, way_points: [i, i + 1] }));
+  const acumulado = [...pasos.map((_, i) => i * 600), 12000];
+  const propio = analizarGiros(pasos, acumulado, cfg.giros);
+  const comparado = analizarGiros(pasos, acumulado, cfg.giros, 5);
+  assert.ok(comparado.penalizacion > propio.penalizacion);
+});

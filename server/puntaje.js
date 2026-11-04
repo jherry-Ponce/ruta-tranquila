@@ -66,8 +66,11 @@ export function calcularPuntaje(analisis, trafico, cfg, vehiculo = 'auto') {
   const bonoCiclovia = Math.min(bonoDisponible, Math.max(0, 100 - baseRedondeada));
 
   // Los cruces se cuentan por cada `kmReferenciaCruces` km: un viaje largo cruza más avenidas por fuerza,
-  // y así el puntaje compara qué tan seguido aparecen, no solo cuántos son.
-  const escala = Math.min(1, cfg.kmReferenciaCruces / Math.max(total / 1000, 0.001));
+  // y así el puntaje compara qué tan seguido aparecen, no solo cuántos son. Entre caminos del mismo viaje
+  // se usa una distancia común (`distanciaReferencia`, la del camino más corto): si no, un rodeo largo
+  // con más cruces saldría castigado menos por cada uno.
+  const referencia = analisis.distanciaReferencia ?? total;
+  const escala = Math.min(1, cfg.kmReferenciaCruces / Math.max(referencia / 1000, 0.001));
   const penalCruces = Math.min(
     cfg.topePenalizacionCruces,
     Math.round(escala * analisis.cruces.reduce((s, c) => s + (cfg.penalizacionCruce[c.clase] ?? 0) * (c.semaforo ? cfg.factorCruceConSemaforo : 1), 0)),

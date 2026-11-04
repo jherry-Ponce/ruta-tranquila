@@ -90,3 +90,19 @@ test('el hospital principal aparece antes que un estacionamiento cuyo nombre lo 
   const lugares = await buscarDireccion('hospital rebagliati', cfg.limitesLima);
   assert.equal(lugares[0].nombre, 'Hospital Edgardo Rebagliati Martins');
 });
+
+test('el distrito escrito en la búsqueda no hace ganar a un lugar que lo lleva en su nombre', async (t) => {
+  activarTomTom(t);
+  const enMiraflores = (nombre, lat, lon) => ({
+    type: 'POI', poi: { name: nombre }, position: { lat, lon },
+    address: { freeformAddress: 'Miraflores, Lima', municipalitySubdivision: 'Miraflores', municipality: 'Lima' },
+  });
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ results: [
+    enMiraflores('Luxury Room With Breakfast-Larcomar Miraflores', -12.133, -77.026),
+    enMiraflores('Larcomar', -12.1321, -77.0304),
+    enMiraflores('Wong Larcomar', -12.132, -77.0306),
+  ] })));
+  for (const texto of ['Larcomar Miraflores', 'Larcomar, Miraflores', 'larcomar']) {
+    assert.equal((await buscarDireccion(texto, cfg.limitesLima))[0].nombre, 'Larcomar', texto);
+  }
+});

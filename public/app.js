@@ -573,9 +573,14 @@ function llegaPorAvenida(ruta) {
   );
 }
 
+const PUNTAJE_TRANQUILA = 40; // por debajo, la etiqueta es "Difícil para principiantes"
+const sinRutaTranquila = (ruta) => !ruta.practica && ruta.puntaje.valor < PUNTAJE_TRANQUILA;
+
 function tarjeta(ruta, i) {
   const tipo = ruta.tipos[0];
-  const titulo = ruta.tipos.map((t, k) => (k ? NOMBRE_TIPO[t].toLowerCase() : NOMBRE_TIPO[t])).join(' y ');
+  // Si ni la mejor es tranquila (puntaje bajo 40), no se le llama "Más tranquila": se dice lo que es.
+  const nombreTipo = (t) => (t === 'tranquila' && sinRutaTranquila(ruta) ? 'La menos difícil' : NOMBRE_TIPO[t]);
+  const titulo = ruta.tipos.map((t, k) => (k ? nombreTipo(t).toLowerCase() : nombreTipo(t))).join(' y ');
   const conTrafico = ruta.trafico?.confiable;
   const tiempo = tiempoDe(ruta);
   const { puntaje } = ruta;
@@ -827,7 +832,25 @@ function mostrarResultados({ rutas: lista, horario = {}, trafico = {}, estaciona
   } else if (horario.mensaje) {
     mensajes.push(el('p', { class: 'aviso aviso-hora' }, el('strong', {}, horario.enHoraPunta ? 'Hora punta. ' : 'Atento a la hora. '), horario.mensaje));
   }
-  if (avisos && rutas.length === 1) mensajes.push(el('p', { class: 'aviso aviso-info' }, 'La ruta más rápida también es la más tranquila que encontré.'));
+  const mejor = rutas.find((r) => r.tipos.includes('tranquila'));
+  if (avisos && mejor && sinRutaTranquila(mejor)) {
+    // Si sin el tráfico de ahora la ruta sí sería tranquila, la causa es la hora, no el camino.
+    const porTrafico = mejor.puntaje.valor - (mejor.puntaje.desglose?.trafico ?? 0) >= PUNTAJE_TRANQUILA;
+    mensajes.push(
+      el(
+        'p',
+        { class: 'aviso aviso-hora' },
+        porTrafico
+          ? [el('strong', {}, 'Ahora hay mucho tráfico en todas las rutas. '), 'Te muestro la menos difícil; a otra hora este camino es más tranquilo.']
+          : [
+              el('strong', {}, 'No hay una ruta tranquila entre estos puntos. '),
+              'Cualquier camino cruza o recorre avenidas; te muestro la menos difícil. Si recién empiezas, ensaya el recorrido antes o ve acompañado la primera vez.',
+            ],
+      ),
+    );
+  } else if (avisos && rutas.length === 1) {
+    mensajes.push(el('p', { class: 'aviso aviso-info' }, 'La ruta más rápida también es la más tranquila que encontré.'));
+  }
   if (avisos && trafico.mensaje) mensajes.push(el('p', { class: 'aviso aviso-info' }, trafico.mensaje));
   if (avisos) mostrarMensajes(...mensajes);
 
