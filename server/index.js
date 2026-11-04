@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import cfg from '../config/tranquilidad.js';
 import { cargarRed, ARCHIVO_VIAS } from './vias.js';
+import { cargarEstacionamientos, estacionamientosCerca } from './estacionamientos.js';
 import { ErrorServicio, hayKeyOrs } from './ors.js';
 import { buscarDireccion, direccionDePunto, sugerirLugares } from './direcciones.js';
 import { hayKeyTomTom } from './trafico.js';
@@ -44,6 +45,8 @@ if (existsSync(ARCHIVO_VIAS)) {
 } else {
   console.warn('No existe data/vias-principales-lima.json. Ejecuta: npm run datos');
 }
+// Estacionamientos de OSM para sugerir dónde dejar el vehículo al llegar (opcional).
+const estacionamientos = cargarEstacionamientos();
 
 // Límite simple para no agotar la cuota gratuita (cada búsqueda de rutas hace 4 pedidos a ORS).
 function limitador(maximo, ventanaMs) {
@@ -172,7 +175,8 @@ const API = {
     const vehiculo = ['auto', 'motoElectrica', 'bici'].includes(cuerpo.vehiculo) ? cuerpo.vehiculo : 'auto';
     const nivel = ['principiante', 'intermedio', 'normal'].includes(cuerpo.nivel) ? cuerpo.nivel : 'principiante';
     const evitar = puntosEvitar(cuerpo.evitar);
-    return planificar({ origen, destino, salida, vehiculo, nivel, evitar, ajusteRitmo: ajusteRitmo(cuerpo.ajusteRitmo), depurar: Boolean(cuerpo.depurar) }, { red, cfg });
+    const resultado = await planificar({ origen, destino, salida, vehiculo, nivel, evitar, ajusteRitmo: ajusteRitmo(cuerpo.ajusteRitmo), depurar: Boolean(cuerpo.depurar) }, { red, cfg });
+    return { ...resultado, estacionamientos: estacionamientosCerca(estacionamientos, destino, vehiculo) };
   },
 
   // Tramo después de llegar (destino → otro lugar), solo para estimar la batería: 1 pedido a ORS.

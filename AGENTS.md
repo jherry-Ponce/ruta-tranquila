@@ -103,6 +103,22 @@ aprendiendo a manejar (auto, moto eléctrica) o va en bici/monopatín. Producci�
 - Ritmo personal: al llegar sin recálculo ni pausas >2 min (viaje >1 km), `viaje.js` envía tiempo real vs. estimado; `app.js` guarda la relación con el cálculo base (últimas 5 por vehículo, descarta <0,4 o >3) y desde 2 viajes manda `ajusteRitmo` (mediana, 0,7–2) a `/api/rutas` y `/api/practica`. Con tráfico TomTom se multiplica; la moto eléctrica nunca baja de su propio tope.
 - Mapa: la red ciclista es fondo (colores apagados, 2 px, una línea en la leyenda) y la ruta elegida lleva borde oscuro (#1f2937). La red se oculta durante el viaje o ensayo y vuelve al terminar.
 
+## Funciones por tipo de usuario (2026-11-04)
+
+- Elegidas por el usuario tras recorrer cada tipo de usuario: tarjeta resumida, dónde estacionar al llegar (auto y bici), mapa oscuro de noche (general) y aviso de luces en bici. Moto eléctrica ya quedaba cubierta con batería y lugares a evitar.
+  Pendientes no elegidas: auto mecánico y subidas, gibas (`traffic_calming`), cuestas fuertes como puntos críticos y superficie (`surface`) para ruedas pequeñas.
+- Tarjeta: arriba solo tiempo, batería, ritmo, puntaje, barra y una línea `resumenCriticos` (cruces, tramos, tráfico, caminata). Porcentajes, explicación, puntos críticos y pasos van en "Ver detalle". El aviso de vías rápidas sigue visible.
+- Estacionamientos: `data/estacionamientos-lima.json`, de `npm run datos:estacionamientos`; original en `referencias/osm-estacionamientos-original.json.gz`.
+  Datos de la réplica OSM del 2026-07-28: 2842 lugares, de ellos 838 de autos, 88 de bicis y 7 de motos en Lima moderna. Muy pocos tienen nombre.
+  Se descartan `access` private, no, permit y delivery. `customers` se muestra como "solo para clientes".
+  Radio: 400 m en auto y moto; 300 m en bici, que solo usa `bicycle_parking`. La moto usa `motorcycle_parking` y los de autos sin `motorcycle=no`. Se dan hasta 3, ordenados por distancia.
+  Van en `/api/rutas` como `estacionamientos`. La interfaz los pone después de la ruta recomendada; si no hay, no se muestra nada. La voz de llegada dice el más cercano (`avisoLlegada`).
+- Llegada por avenida (`llegadaPorAvenida` en `server/planificador.js`): si la mayor parte de los últimos 40 m va por una avenida mediana, grande o vía rápida, la tarjeta avisa que no se detenga en la pista. No aplica a bici, que ya recibe el "camina empujando la bici", ni a práctica.
+- De noche (`public/noche.js`): altura del sol en Lima con una fórmula astronómica simple, sin servicios externos.
+  Mapa oscuro si el sol está bajo −0,83°. La clase `.noche` en `<html>` invierte solo las imágenes del mapa con un filtro CSS y oscurece controles, leyenda y barra del viaje; el resto de la página no cambia. Se revisa cada minuto.
+  `?noche=1` o `?noche=0` fuerza el modo para revisarlo.
+  Luces de bici si el sol está bajo 4° (unos 15 min antes de la puesta): `avisoInicial` en `iniciarViaje`; no se dice en el ensayo.
+
 ## Versión 2 (pendiente, en una rama aparte; no empezar sin acuerdo)
 
 - Pasar los mapas de los tiles de OpenStreetMap (su política no admite uso intensivo) a un proveedor con plan gratuito antes de lanzar.

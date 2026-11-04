@@ -89,6 +89,9 @@ Con `HOST=0.0.0.0`, cualquier persona conectada a tu Wi-Fi puede usar la app y g
 - **Favoritos:** guarda Casa, Trabajo u otros lugares y úsalos con un toque (solo en tu equipo).
 - **Ver cómo es:** cada punto crítico abre Street View mirando hacia donde vas.
 - **Batería:** en moto eléctrica o monopatín indica cuántos km te quedan y si después te quedas, vuelves o sigues a otro lugar; la tarjeta dice si alcanza (y qué tramo no), contando las subidas.
+- **Tarjeta resumida:** tiempo, batería, puntaje y una línea con los cruces y tramos difíciles; los porcentajes, la explicación, los puntos críticos y los pasos quedan en "Ver detalle".
+- **Dónde estacionar al llegar:** hasta 3 estacionamientos de OpenStreetMap a menos de 400 m del destino (300 m para bici, solo estacionamientos de bicis), marcados con una P en el mapa. Al llegar, la voz dice el más cercano. Si la ruta termina sobre una avenida, la tarjeta avisa que no te detengas en la pista.
+- **De noche:** el mapa y la barra del viaje se oscurecen solos según la hora del sol en Lima. En bici, al empezar el viaje de noche (o al atardecer) la voz recuerda encender las luces.
 - **Recálculo automático:** si te desvías, busca otra ruta tranquila y te avisa por voz, sin tocar el celular.
 - **Avisar:** manda por WhatsApp tu hora de llegada o "Ya llegué".
 - **¿Qué tal estuvo?:** al llegar puedes marcar puntos difíciles; las próximas rutas los evitan.
@@ -185,6 +188,12 @@ Para actualizar el archivo:
 npm run datos
 ```
 
+Los estacionamientos (autos, motos y bicis) están en `data/estacionamientos-lima.json`. Para actualizarlos (o reprocesar el original sin red con `-- --desde referencias/osm-estacionamientos-original.json.gz`):
+
+```bash
+npm run datos:estacionamientos
+```
+
 ### Hora punta
 
 Si la salida cae de lunes a viernes entre las 7:00 y las 9:30 o entre las 17:00 y las 20:00 (hora de Lima), la app sugiere salir en otro momento. También avisa 45 minutos antes de que empiece la hora punta. Los horarios se configuran en `config/tranquilidad.js` y no tienen en cuenta los feriados.
@@ -236,6 +245,7 @@ Prueban el puntaje, la detección de cruces con vías reales de Lima, las zonas 
 ruta-tranquila/
 ├─ config/tranquilidad.js      pesos, penalizaciones, horas punta y límites de Lima
 ├─ data/vias-principales-lima.json   vías de OpenStreetMap (npm run datos)
+├─ data/estacionamientos-lima.json   estacionamientos de OSM (npm run datos:estacionamientos)
 ├─ scripts/descargar-vias.js   descarga las vías con Overpass API
 ├─ server/
 │  ├─ index.js        servidor HTTP: página y endpoints

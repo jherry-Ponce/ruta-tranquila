@@ -102,7 +102,7 @@ export function enlaceSeguirEnGoogle(geometria, acumulado, recorrido, modo = 'dr
 // Opciones: alRecalcular(pos) recálculo manual; alDesviarse(pos) → Promise<ruta> recálculo automático;
 // alOpinar(opinion) guarda la opinión del viaje; alLlegar(medicion) recibe el tiempo real para aprender el ritmo; alTerminar() al cerrar; destino: nombre para los mensajes;
 // practica: { nivel } si es un circuito de práctica.
-export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTerminar, alDesviarse, alOpinar, alLlegar, alMarcarLugar, destino = '', practica = null }) {
+export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTerminar, alDesviarse, alOpinar, alLlegar, alMarcarLugar, destino = '', practica = null, avisoInicial = '', avisoLlegada = '' }) {
   // La ruta se puede reemplazar a mitad de camino (recálculo automático) sin cortar la guía.
   let ruta, P, acumulado, total, pasos, criticos;
   let recorrido = 0;
@@ -302,7 +302,7 @@ export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTe
 
   function llegar() {
     medirRitmo();
-    hablar(practica ? '¡Terminaste la práctica! Bien hecho.' : 'Llegaste a tu destino.', true);
+    hablar(practica ? '¡Terminaste la práctica! Bien hecho.' : `Llegaste a tu destino.${avisoLlegada ? ` ${avisoLlegada}` : ''}`, true);
     detenerSeguimiento(false);
     if (ensayo || !alOpinar) {
       instruccion.textContent = practica ? 'Práctica terminada' : 'Llegaste a tu destino';
@@ -542,6 +542,8 @@ export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTe
         : 'Iniciando viaje. Maneja con calma.',
     true,
   );
+  // Por ejemplo, encender las luces de la bici si ya oscurece (lo decide app.js).
+  if (avisoInicial) hablar(avisoInicial);
 
   // Apaga GPS, voz y bloqueo de pantalla; la barra sigue visible (por ejemplo, para la opinión).
   function detenerSeguimiento(cancelar) {

@@ -10,6 +10,7 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env server/index.js",
     "datos": "node scripts/descargar-vias.js",
+    "datos:estacionamientos": "node scripts/descargar-estacionamientos.js",
     "test": "node --test",
     "calibrar": "node scripts/calibrar.js",
     "revisar:ciclovias": "node scripts/revisar-ciclovias.js"

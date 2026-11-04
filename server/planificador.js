@@ -10,7 +10,7 @@
 import { pedirRutas, ErrorServicio } from './ors.js';
 import { zonasAEvitar } from './zonas.js';
 import { medirTrafico, hayKeyTomTom } from './trafico.js';
-import { analizarRuta, tramosPorClase } from './analisis.js';
+import { analizarRuta, tramosPorClase, PRINCIPALES } from './analisis.js';
 import { calcularPuntaje } from './puntaje.js';
 import { armarPasos, abreviar, formatoDistancia, avisoCruce } from './pasos.js';
 import { evaluarHorario } from './horario.js';
@@ -196,6 +196,19 @@ export function zonasDePuntos(puntos, extremos = []) {
 }
 
 // Formato que recibe la interfaz para cada ruta (rutas normales y de práctica).
+// ¿La ruta termina sobre una avenida? Se miran los últimos 40 m: si la mayor parte va por una avenida
+// mediana, grande o vía rápida, al novato le conviene saber antes que ahí no puede detenerse en la pista.
+const FINAL_LLEGADA = 40;
+export function llegadaPorAvenida(analisis) {
+  const { segmentos = [], distancia: total = 0 } = analisis ?? {};
+  const finales = segmentos.filter((s) => s.desde + s.largo > total - FINAL_LLEGADA);
+  const metros = (lista) => lista.reduce((m, s) => m + Math.min(s.largo, s.desde + s.largo - (total - FINAL_LLEGADA)), 0);
+  const enAvenida = finales.filter((s) => PRINCIPALES.has(s.clase));
+  if (!enAvenida.length || metros(enAvenida) < metros(finales) / 2) return null;
+  const via = enAvenida.at(-1);
+  return { clase: via.clase, nombre: via.via?.nombre ? abreviar(via.via.nombre) : null };
+}
+
 function formatearRuta(r, { tipos, vehiculo, snapInicio = null, duracionTotal = r.duracion }) {
   return {
     id: r.origen,
@@ -227,6 +240,7 @@ function formatearRuta(r, { tipos, vehiculo, snapInicio = null, duracionTotal = 
     geometria: r.coordenadas.map(([lon, lat]) => [Number(lat.toFixed(6)), Number(lon.toFixed(6))]),
     // Para pintar en el mapa qué partes van por ciclovía, calle, avenida o a pie.
     tramosPorClase: tramosPorClase(r.analisis.segmentos),
+    llegadaPorAvenida: llegadaPorAvenida(r.analisis),
     enlaceGoogleMaps: enlaceGoogleMaps(r).replace('travelmode=driving', vehiculo === 'bici' ? 'travelmode=bicycling' : 'travelmode=driving'),
   };
 }

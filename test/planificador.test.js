@@ -210,3 +210,13 @@ test('tramo siguiente: un solo pedido, sin avenidas, y entrega km y subidas', as
   assert.ok(t.distanciaMetros > 3000 && t.distanciaMetros < 4000, String(t.distanciaMetros));
   assert.equal(typeof t.subidaMetros, 'number');
 });
+
+test('avisa si la ruta termina sobre una avenida y no si solo la cruza antes de llegar', async () => {
+  const { llegadaPorAvenida } = await import('../server/planificador.js');
+  const seg = (desde, largo, clase, nombre) => ({ desde, largo, clase, via: nombre ? { nombre } : null });
+  const sobreAvenida = { distancia: 1000, segmentos: [seg(0, 900, 'residencial'), seg(900, 100, 'primaria', 'Avenida La Marina')] };
+  assert.deepEqual(llegadaPorAvenida(sobreAvenida), { clase: 'primaria', nombre: 'Av. La Marina' });
+  const cruzaAntes = { distancia: 1000, segmentos: [seg(0, 940, 'residencial'), seg(940, 15, 'primaria', 'Avenida La Marina'), seg(955, 45, 'residencial')] };
+  assert.equal(llegadaPorAvenida(cruzaAntes), null);
+  assert.equal(llegadaPorAvenida({ distancia: 500, segmentos: [seg(0, 500, 'menor')] }), null);
+});

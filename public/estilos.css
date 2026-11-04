@@ -485,6 +485,25 @@ a:focus-visible {
   color: var(--texto-suave);
 }
 
+/* Tarjeta resumida: lo esencial arriba; porcentajes, explicación y puntos críticos en "Ver detalle". */
+.resumen-ruta {
+  margin: 4px 0 0;
+  font-size: 0.95rem;
+}
+
+.detalle-ruta > .leyenda {
+  margin-top: 6px;
+}
+
+.titulo-detalle {
+  margin: 12px 0 0;
+  font-size: 0.95rem;
+}
+
+.detalle-ruta details {
+  margin-top: 12px;
+}
+
 details {
   margin-top: 10px;
   border-top: 1px solid var(--borde);
@@ -1425,4 +1444,127 @@ body.mapa-completo .mapa {
   color: #fff;
   text-align: left;
   text-decoration: underline;
+}
+
+/* De noche (clase .noche, automática según la hora del sol en Lima): el mapa y la barra del viaje se
+   oscurecen para no encandilar. Las imágenes del mapa se invierten con un filtro; las rutas, marcas y
+   avisos quedan con sus colores porque van en otras capas. El resto de la página no cambia. */
+.noche .mapa {
+  background: #1a2321;
+}
+.noche .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.82) contrast(0.9) saturate(0.55);
+}
+.noche .leaflet-bar a,
+.noche .controles-mapa button {
+  background: #1f2a27;
+  color: #e3ece9;
+  border-bottom-color: #34433f;
+}
+.noche .controles-mapa button[aria-pressed='true'] {
+  background: #164e47;
+  color: #a7f3e4;
+}
+.noche .leaflet-bar {
+  border-color: rgb(0 0 0 / 0.5);
+}
+.noche .leyenda-mapa {
+  background: rgb(22 31 29 / 0.92);
+  color: #e3ece9;
+}
+.noche .leaflet-control-attribution {
+  background: rgb(22 31 29 / 0.75);
+  color: #9fb1ab;
+}
+.noche .leaflet-control-attribution a {
+  color: #8fd3c7;
+}
+.noche .viaje {
+  background: #0b1f1c;
+  color: #e3ece9;
+}
+.noche .viaje .boton-principal {
+  background: #e3ece9;
+  color: #0b1f1c;
+}
+
+/* Al llegar: dónde estacionar. Va entre la ruta recomendada y las otras, sin aspecto de tarjeta de ruta. */
+.llegada {
+  padding: 12px 14px;
+  border-radius: var(--radio);
+  background: var(--primario-claro);
+}
+.llegada h2 {
+  font-size: 1rem;
+}
+.llegada ul {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.llegada li button {
+  all: unset;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 10px;
+  align-items: start;
+  width: 100%;
+  min-height: 44px;
+  padding: 4px 0;
+  cursor: pointer;
+}
+.llegada li button:focus-visible {
+  outline: 3px solid var(--primario);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.llegada strong {
+  display: block;
+}
+.datos-estacionamiento {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+}
+.marca-estacionamiento {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: #1d4ed8;
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+.leaflet-div-icon.contenedor-estacionamiento {
+  background: none;
+  border: 0;
+}
+.leaflet-div-icon.contenedor-estacionamiento .marca-estacionamiento {
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.4);
+}
+.marca-estacionamiento.tipo-b {
+  background: #0e7490;
+}
+.popup-estacionamiento p {
+  margin: 4px 0 0;
+}
+.nota-llegada {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--alerta-fondo);
+  font-size: 0.9rem;
+}
+.noche .viaje .boton-secundario {
+  background: transparent;
+  color: #e3ece9;
+  border-color: #4b5f5a;
 }

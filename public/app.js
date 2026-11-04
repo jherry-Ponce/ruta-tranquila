@@ -5,6 +5,7 @@ import { iniciarViaje } from './viaje.js';
 import { leer, guardar, borrarTodo } from './almacen.js';
 import { estimarBateria, MARGEN } from './bateria.js';
 import { enlaceStreetView, rumboEn } from './enlaces.js';
+import { esDeNoche, horaDeLuces } from './noche.js';
 
 const LIMA = [-12.09, -77.03];
 const COLORES = { tranquila: '#15803d', alternativa: '#7c3aed', rapida: '#475569', practica: '#0f5e57' };
@@ -95,12 +96,26 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">colaboradores de OpenStreetMap</a>',
 }).addTo(mapa);
 
+// De noche el mapa se oscurece solo, para no encandilar al manejar. Se revisa cada minuto.
+// ?noche=1 o ?noche=0 fuerza el modo (para revisar cómo se ve).
+const forzarNoche = new URLSearchParams(location.search).get('noche');
+const deNoche = () => (forzarNoche === null ? esDeNoche() : forzarNoche === '1');
+const horaLuces = () => (forzarNoche === null ? horaDeLuces() : forzarNoche === '1');
+function revisarNoche() {
+  const noche = deNoche();
+  document.documentElement.classList.toggle('noche', noche);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', noche ? '#0b1f1c' : '#0f5e57');
+}
+revisarNoche();
+setInterval(revisarNoche, 60_000);
+
 // La red de ciclovías va en un panel propio, debajo de las rutas.
 mapa.createPane('ciclovias').style.zIndex = 350;
 const capaCiclovias = L.layerGroup();
 const capaRutas = L.layerGroup().addTo(mapa);
 const capaTramos = L.layerGroup().addTo(mapa); // ruta elegida pintada por tipo de vía
 const capaAlertas = L.layerGroup().addTo(mapa);
+const capaLlegada = L.layerGroup().addTo(mapa); // estacionamientos cerca del destino
 
 // Colores por tipo de vía: los mismos de la barrita de cada tarjeta.
 const colorCss = (nombre, porDefecto) => getComputedStyle(document.documentElement).getPropertyValue(nombre).trim() || porDefecto;
@@ -452,6 +467,8 @@ function limpiarRutas() {
   capaRutas.clearLayers();
   capaTramos.clearLayers();
   capaAlertas.clearLayers();
+  capaLlegada.clearLayers();
+  estacionamientos = [];
   clasesRuta = [];
   actualizarLeyenda();
   $('resultados').replaceChildren();
@@ -526,6 +543,35 @@ function nivel(valor) {
 }
 
 const tiempoDe = (ruta) => ruta.duracionTotalSegundos ?? (ruta.trafico?.confiable ? ruta.trafico.duracionSegundos : ruta.duracionSegundos);
+
+// Una línea con lo que el novato debe saber antes de elegir: cuántos cruces y tramos difíciles tiene.
+function resumenCriticos(criticos) {
+  const contar = (tipo) => criticos.filter((p) => p.tipo === tipo).length;
+  const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+  const cruces = contar('cruce');
+  const tramos = contar('tramo');
+  const trafico = contar('trafico');
+  const partes = [
+    cruces && `cruzas ${plural(cruces, 'avenida', 'avenidas')}`,
+    tramos && `${plural(tramos, 'tramo', 'tramos')} por avenida`,
+    trafico && `tráfico en ${plural(trafico, 'punto', 'puntos')}`,
+    contar('caminata') && 'caminas al inicio',
+  ].filter(Boolean);
+  if (!partes.length) return 'Sin cruces ni tramos por avenidas.';
+  const texto = partes.length > 1 ? `${partes.slice(0, -1).join(', ')} y ${partes.at(-1)}` : partes[0];
+  return `${texto.charAt(0).toUpperCase()}${texto.slice(1)}. Están marcados en el mapa.`;
+}
+
+// En bici, una avenida al final ya aparece como "camina empujando la bici" en los puntos críticos.
+function llegaPorAvenida(ruta) {
+  const llegada = ruta.llegadaPorAvenida;
+  if (!llegada || ruta.practica || valorDe('vehiculo') === 'bici') return null;
+  return el(
+    'p',
+    { class: 'nota-llegada' },
+    `Llegas por ${llegada.nombre ?? 'una avenida'}: no te detengas en la pista. Estaciona antes, en una calle lateral o en un estacionamiento.`,
+  );
+}
 
 function tarjeta(ruta, i) {
   const tipo = ruta.tipos[0];
@@ -610,28 +656,32 @@ function tarjeta(ruta, i) {
     ),
     el('p', { class: 'puntaje-etiqueta' }, puntaje.etiqueta),
     barra,
-    el(
-      'ul',
-      { class: 'leyenda' },
-      Object.entries(puntaje.porcentajes).map(([clase, pct]) => el('li', { class: `clase-${clase}` }, `${pct}% ${NOMBRE_CLASE[clase]}`)),
-    ),
-    el('p', { class: 'explicacion' }, puntaje.explicacion),
+    el('p', { class: 'resumen-ruta' }, resumenCriticos(criticos)),
+    llegaPorAvenida(ruta),
     usaViaRapida &&
       el('p', { class: 'nota-ruta' }, 'Usa vías rápidas como la Vía Expresa o la Panamericana. Si recién empiezas, mejor evítalas; algunas motos y scooters tienen restricciones ahí.'),
+    // Lo demás, para quien quiere saber más: el novato decide con el resumen de arriba.
     el(
       'details',
-      { open: i === 0 },
-      el('summary', {}, criticos.length ? `${criticos.length} ${criticos.length === 1 ? 'punto crítico' : 'puntos críticos'}` : 'Sin puntos críticos'),
-      criticos.length ? listaCriticos : el('p', { class: 'nota-ruta' }, 'No encontré cruces ni tramos por avenidas grandes o medianas.'),
-    ),
-    el(
-      'details',
-      {},
-      el('summary', {}, `Instrucciones paso a paso (${ruta.pasos.length})`),
+      { class: 'detalle-ruta' },
+      el('summary', {}, 'Ver detalle'),
       el(
-        'ol',
-        { class: 'lista-pasos' },
-        ruta.pasos.map((p) => el('li', {}, el('span', {}, p.texto, p.avisos.map((a) => el('span', { class: 'aviso-paso' }, a))))),
+        'ul',
+        { class: 'leyenda' },
+        Object.entries(puntaje.porcentajes).map(([clase, pct]) => el('li', { class: `clase-${clase}` }, `${pct}% ${NOMBRE_CLASE[clase]}`)),
+      ),
+      el('p', { class: 'explicacion' }, puntaje.explicacion),
+      criticos.length > 0 && el('h3', { class: 'titulo-detalle' }, criticos.length === 1 ? 'Punto crítico' : `${criticos.length} puntos críticos`),
+      criticos.length > 0 && listaCriticos,
+      el(
+        'details',
+        {},
+        el('summary', {}, `Instrucciones paso a paso (${ruta.pasos.length})`),
+        el(
+          'ol',
+          { class: 'lista-pasos' },
+          ruta.pasos.map((p) => el('li', {}, el('span', {}, p.texto, p.avisos.map((a) => el('span', { class: 'aviso-paso' }, a))))),
+        ),
       ),
     ),
     el(
@@ -698,6 +748,8 @@ function empezarViaje(ev, i, ensayo) {
     },
     alLlegar: (medicion) => registrarRitmo(medicion),
     alMarcarLugar: () => iniciarModoEvitar(),
+    avisoLlegada: practica ? '' : fraseEstacionamiento(),
+    avisoInicial: !ensayo && valorDe('vehiculo') === 'bici' && horaLuces() ? 'Está oscureciendo: enciende tus luces, la blanca adelante y la roja atrás.' : '',
     alRecalcular: (pos) => {
       if (!pos) return;
       $('origen').value = 'Tu ubicación';
@@ -707,8 +759,68 @@ function empezarViaje(ev, i, ensayo) {
   });
 }
 
-function mostrarResultados({ rutas: lista, horario = {}, trafico = {} }, { ajustar = true, avisos = true } = {}) {
+// ----- Al llegar: dónde estacionar (OpenStreetMap) -----
+
+let estacionamientos = [];
+const NOMBRE_ESTACIONAMIENTO = { a: 'Estacionamiento', m: 'Estacionamiento de motos', b: 'Estacionamiento de bicis' };
+const iconoEstacionamiento = (tipo) =>
+  L.divIcon({ className: 'contenedor-estacionamiento', html: `<span class="marca-estacionamiento tipo-${tipo}">P</span>`, iconSize: [24, 24], iconAnchor: [12, 12] });
+
+function datosEstacionamiento(l) {
+  const extras = [l.clientes ? 'solo para clientes' : null, l.pago === 1 ? 'de pago' : l.pago === 0 ? 'gratis' : null].filter(Boolean);
+  return `a ${l.metros} m del destino${extras.length ? `, ${extras.join(', ')}` : ''}`;
+}
+
+function bloqueLlegada() {
+  capaLlegada.clearLayers();
+  if (!estacionamientos.length || rutas[0]?.practica) return '';
+  const marcas = estacionamientos.map((l) =>
+    L.marker([l.lat, l.lon], { icon: iconoEstacionamiento(l.tipo), keyboard: false, title: l.nombre ?? NOMBRE_ESTACIONAMIENTO[l.tipo] })
+      .bindPopup(() => el('div', { class: 'popup-estacionamiento' }, el('strong', {}, l.nombre ?? NOMBRE_ESTACIONAMIENTO[l.tipo]), el('p', {}, datosEstacionamiento(l))))
+      .addTo(capaLlegada),
+  );
+  return el(
+    'section',
+    { class: 'llegada', 'aria-label': 'Dónde estacionar al llegar' },
+    el('h2', {}, valorDe('vehiculo') === 'bici' ? 'Dónde dejar la bici al llegar' : 'Dónde estacionar al llegar'),
+    el(
+      'ul',
+      {},
+      estacionamientos.map((l, k) =>
+        el(
+          'li',
+          {},
+          el(
+            'button',
+            {
+              type: 'button',
+              onclick: () => {
+                mapa.setView([l.lat, l.lon], Math.max(mapa.getZoom(), 17), { animate: false });
+                marcas[k].openPopup();
+                if (!mapaCompleto) mapa.getContainer().scrollIntoView({ behavior: 'smooth', block: 'center' });
+              },
+            },
+            el('span', { class: `marca-estacionamiento tipo-${l.tipo}`, 'aria-hidden': 'true' }, 'P'),
+            el('span', {}, el('strong', {}, l.nombre ?? NOMBRE_ESTACIONAMIENTO[l.tipo]), el('span', { class: 'datos-estacionamiento' }, datosEstacionamiento(l))),
+          ),
+        ),
+      ),
+    ),
+    el('p', { class: 'nota-ruta' }, 'Registrados en OpenStreetMap: confirma en el lugar si están abiertos y cuánto cobran.'),
+  );
+}
+
+// Frase para la voz al llegar: el estacionamiento más cercano, si hay.
+function fraseEstacionamiento() {
+  const l = estacionamientos[0];
+  if (!l) return '';
+  const lugar = l.tipo === 'b' ? 'un estacionamiento de bicis' : 'un estacionamiento';
+  return `Hay ${lugar} a unos ${l.metros} metros${l.nombre ? `: ${l.nombre}` : ''}.`;
+}
+
+function mostrarResultados({ rutas: lista, horario = {}, trafico = {}, estacionamientos: lugares = [] }, { ajustar = true, avisos = true } = {}) {
   rutas = lista;
+  estacionamientos = lugares;
   const mensajes = [];
   if (!avisos) {
     // Recálculo durante el viaje o práctica: los avisos de la búsqueda no aplican.
@@ -719,7 +831,9 @@ function mostrarResultados({ rutas: lista, horario = {}, trafico = {} }, { ajust
   if (avisos && trafico.mensaje) mensajes.push(el('p', { class: 'aviso aviso-info' }, trafico.mensaje));
   if (avisos) mostrarMensajes(...mensajes);
 
-  $('resultados').replaceChildren(...rutas.map(tarjeta));
+  const tarjetas = rutas.map(tarjeta);
+  // Dónde estacionar va después de la ruta recomendada: es lo siguiente que se pregunta el novato.
+  $('resultados').replaceChildren(tarjetas[0] ?? '', bloqueLlegada(), ...tarjetas.slice(1));
   lineas = rutas.map((ruta, i) => L.polyline(ruta.geometria, estiloLinea(ruta, false)).on('click', () => seleccionar(i)).addTo(capaRutas));
   seleccionar(0, ajustar);
 }
