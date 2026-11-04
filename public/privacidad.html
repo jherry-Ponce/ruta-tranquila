@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f5e57" />
+    <title>Privacidad · Voy Tranqui</title>
+    <link rel="stylesheet" href="estilos.css" />
+    <link rel="icon" href="icono.svg" type="image/svg+xml" />
+    <style>
+      .documento { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+      .documento h1 { margin-bottom: 4px; }
+      .documento h2 { margin-top: 28px; font-size: 1.15rem; }
+      .documento li { margin-bottom: 6px; }
+      .fecha { color: var(--texto-suave); margin-top: 0; }
+    </style>
+  </head>
+  <body>
+    <main class="documento">
+      <p><a href="/">← Volver a Voy Tranqui</a></p>
+      <h1>Política de privacidad</h1>
+      <p class="fecha">Vigente desde el 4 de noviembre de 2026</p>
+
+      <p>
+        Voy Tranqui te ayuda a encontrar rutas por calles tranquilas en Lima y te guía por voz. Esta página explica,
+        en simple, qué datos usa, para qué y dónde quedan. <strong>No tenemos cuentas de usuario, no mostramos
+        publicidad y no vendemos datos.</strong>
+      </p>
+
+      <h2>1. Tu ubicación</h2>
+      <ul>
+        <li>
+          <strong>Para buscar una ruta</strong> usamos los puntos de salida y llegada que eliges (escritos, tocados en
+          el mapa o tu ubicación actual si tocas "Usar mi ubicación").
+        </li>
+        <li>
+          <strong>Durante el modo viaje</strong> tu ubicación se usa en tu celular para guiarte. No se envía a nuestro
+          servidor, salvo cuando hay que recalcular la ruta porque te desviaste: entonces se envía tu posición del
+          momento para calcular el nuevo camino.
+        </li>
+        <li>
+          <strong>En la app de Android</strong>, mientras dura un viaje la app sigue usando tu ubicación aunque apagues
+          la pantalla, para seguir guiándote por voz. Android muestra una notificación fija mientras esto ocurre. Al
+          terminar el viaje se deja de usar.
+        </li>
+      </ul>
+
+      <h2>2. A quién se envían tus puntos para calcular la ruta</h2>
+      <p>
+        Nuestro servidor no guarda tus direcciones ni tus rutas. Para calcularlas las envía a estos servicios, que las
+        procesan según sus propias políticas:
+      </p>
+      <ul>
+        <li><strong>OpenRouteService</strong> (HeiGIT, Alemania): cálculo de rutas y altura del terreno.</li>
+        <li><strong>TomTom</strong>: búsqueda de direcciones y lugares, y tráfico del momento si sales "ahora".</li>
+        <li><strong>OpenStreetMap</strong>: las imágenes del mapa. Sus servidores reciben tu dirección IP y la zona del mapa que miras.</li>
+      </ul>
+      <p>
+        Los botones de Google Maps, Street View y WhatsApp abren esos servicios con los datos de la ruta o el mensaje
+        <strong>solo si los tocas</strong>.
+      </p>
+
+      <h2>3. Lo que se guarda solo en tu equipo</h2>
+      <p>Estos datos se guardan en tu celular o computadora, no en nuestro servidor:</p>
+      <ul>
+        <li>Tus lugares favoritos (por ejemplo "Casa" o "Trabajo").</li>
+        <li>Tus opiniones al terminar un viaje y los puntos que marcaste para evitar.</li>
+        <li>Tu progreso en el modo práctica y la autonomía de batería que indiques.</li>
+        <li>Preferencias del mapa, como ver la red de ciclovías.</li>
+      </ul>
+      <p>
+        Cuando pides una ruta, los puntos que marcaste para evitar se envían junto con el pedido para que la ruta los
+        esquive, y no se guardan en el servidor. Puedes borrar todos estos datos con el botón "Borrar mis datos de este
+        equipo" al final de la página principal.
+      </p>
+
+      <h2>4. Reportes de errores</h2>
+      <p>
+        Si la app falla, envía al servidor un reporte técnico (el mensaje del error, el archivo, el tipo de navegador y
+        si es la app de Android) para poder corregirlo. El reporte <strong>no incluye tu ubicación ni tus
+        direcciones</strong>. Se conserva solo en los registros temporales del servidor.
+      </p>
+
+      <h2>5. Mensajes que compartes</h2>
+      <p>
+        El botón "Avisar" prepara un mensaje de WhatsApp con tu hora estimada de llegada o con "Ya llegué". Tú eliges a
+        quién enviarlo; Voy Tranqui no lo envía por su cuenta.
+      </p>
+
+      <h2>6. Permisos de la app de Android</h2>
+      <ul>
+        <li><strong>Ubicación</strong>: para guiarte durante el viaje, también con la pantalla apagada.</li>
+        <li><strong>Notificaciones</strong>: para mostrar la notificación fija mientras te guía.</li>
+        <li><strong>Internet</strong>: para buscar rutas y cargar el mapa.</li>
+      </ul>
+
+      <h2>7. Menores de edad</h2>
+      <p>Voy Tranqui no pide datos personales y no está dirigida a menores de 13 años.</p>
+
+      <h2>8. Cambios</h2>
+      <p>Si esta política cambia, se actualizará esta página y su fecha.</p>
+    </main>
+  </body>
+</html>

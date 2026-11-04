@@ -1,11 +1,14 @@
-// Interfaz de Ruta Tranquila: formulario, mapa (Leaflet + OpenStreetMap) y resultados.
+// Interfaz de Voy Tranqui: formulario, mapa (Leaflet + OpenStreetMap) y resultados.
 // Los textos que vienen del servidor se insertan siempre con textContent, nunca como HTML.
 
 import { iniciarViaje } from './viaje.js';
+import { leer, guardar, borrarTodo } from './almacen.js';
+import { estimarBateria } from './bateria.js';
+import { enlaceStreetView, rumboEn } from './enlaces.js';
 
 const LIMA = [-12.09, -77.03];
-const COLORES = { tranquila: '#15803d', alternativa: '#7c3aed', rapida: '#475569' };
-const NOMBRE_TIPO = { tranquila: 'Más tranquila', rapida: 'Más rápida', alternativa: 'Alternativa' };
+const COLORES = { tranquila: '#15803d', alternativa: '#7c3aed', rapida: '#475569', practica: '#0f5e57' };
+const NOMBRE_TIPO = { tranquila: 'Más tranquila', rapida: 'Más rápida', alternativa: 'Alternativa', practica: 'Circuito de práctica' };
 const NOMBRE_CLASE = {
   residencial: 'calles tranquilas',
   menor: 'calles con más movimiento',
@@ -49,6 +52,33 @@ async function api(ruta, cuerpo) {
   if (!respuesta.ok) throw new Error(datos.error || `Error ${respuesta.status}`);
   return datos;
 }
+
+// ----- Errores en producción -----
+// Si algo falla en el celular de alguien, se avisa al servidor (máximo 5 por visita, sin repetir el mismo).
+// Solo texto técnico: nunca ubicaciones ni direcciones.
+const erroresEnviados = new Set();
+function reportarError(mensaje, pila = '', archivo = '', linea = 0) {
+  const clave = `${mensaje}|${archivo}|${linea}`;
+  if (erroresEnviados.size >= 5 || erroresEnviados.has(clave)) return;
+  erroresEnviados.add(clave);
+  const limpiar = (t) => String(t ?? '').replace(/-?\d{1,3}\.\d{4,}/g, '#'); // por si un mensaje trae coordenadas
+  fetch('/api/errores', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      mensaje: limpiar(mensaje),
+      pila: limpiar(pila),
+      archivo: String(archivo).split('?')[0],
+      linea,
+      pagina: location.pathname,
+      app: window.Capacitor?.isNativePlatform?.() === true,
+      navegador: navigator.userAgent,
+    }),
+    keepalive: true,
+  }).catch(() => {});
+}
+window.addEventListener('error', (ev) => reportarError(ev.message, ev.error?.stack, ev.filename, ev.lineno));
+window.addEventListener('unhandledrejection', (ev) => reportarError(`Promesa rechazada: ${ev.reason?.message ?? ev.reason}`, ev.reason?.stack));
 
 const formatoKm = (m) => `${(m / 1000).toFixed(1).replace('.', ',')} km`;
 
@@ -265,6 +295,7 @@ function mostrarInfo(cual, opciones = []) {
   if (!p) return;
   caja.append(el('span', {}, p.etiqueta ? `Te ubiqué en: ${p.etiqueta}` : 'Punto elegido en el mapa.'));
   if (!p.exacto) caja.append(' ', el('span', { class: 'aproximado' }, '(aproximado: arrastra el marcador si no es el lugar exacto)'));
+  caja.append(' ', botonGuardarFavorito(cual));
   if (opciones.length) {
     caja.append(
       el(
@@ -444,7 +475,9 @@ function dibujarTramos(ruta) {
   actualizarLeyenda();
 }
 
+let seleccionada = 0;
 function seleccionar(i, ajustar = false) {
+  seleccionada = i;
   const porTramos = Boolean(rutas[i].tramosPorClase?.length);
   lineas.forEach((linea, k) => {
     linea.setStyle(k === i && porTramos ? { color: '#ffffff', weight: 11, opacity: 0.95, dashArray: null } : estiloLinea(rutas[k], k === i));
@@ -464,7 +497,7 @@ function seleccionar(i, ajustar = false) {
   }
   alertas = rutas[i].puntosCriticos.map((p) =>
     L.marker([p.lat, p.lon], { icon: iconoAlerta(p.tipo), title: p.titulo, keyboard: false })
-      .bindPopup(el('div', {}, el('strong', {}, p.titulo), el('br'), p.detalle))
+      .bindPopup(el('div', {}, el('strong', {}, p.titulo), el('br'), p.detalle, el('br'), enlaceVerCalle(rutas[i], p)))
       .addTo(capaAlertas),
   );
   if (ajustar) mapa.fitBounds(L.featureGroup(lineas).getBounds(), { padding: [24, 24] });
@@ -518,6 +551,7 @@ function tarjeta(ruta, i) {
           el('span', { class: 'titulo-critico' }, p.titulo),
           el('span', { class: 'detalle-critico' }, ` · km ${String(p.km).replace('.', ',')}. ${p.detalle}`),
         ),
+        enlaceVerCalle(ruta, p),
       ),
     ),
   );
@@ -549,6 +583,7 @@ function tarjeta(ruta, i) {
         ),
         ruta.caminataInicial && el('p', { class: 'ruta-datos' }, `Total aprox.: ${ruta.caminataInicial.minutos} min caminando + ${formatoTiempo(ruta.duracionSegundos)} en bici. Caminata estimada en línea recta.`),
         extra > 0 && el('p', { class: 'ruta-datos' }, `${extra} min más que la más rápida`),
+        lineaBateria(ruta),
       ),
       el(
         'div',
@@ -609,10 +644,32 @@ function empezarViaje(ev, i, ensayo) {
   const estabaCompleto = mapaCompleto;
   pantallaCompleta(true);
   mapa.setZoom(17);
-  iniciarViaje(rutas[i], {
+  const ruta = rutas[i];
+  const practica = ruta.practica ?? null;
+  // En la práctica se vuelve al punto de partida; si no, al destino elegido.
+  const meta = practica ? { lat: ruta.geometria[0][0], lon: ruta.geometria[0][1] } : { lat: puntos.destino.lat, lon: puntos.destino.lon };
+  iniciarViaje(ruta, {
     mapa,
     el,
     ensayo,
+    practica,
+    destino: practica ? '' : (puntos.destino?.etiqueta ?? $('destino').value.trim()),
+    alDesviarse: async (pos) => {
+      const datos = await api('/api/rutas', {
+        origen: { lat: pos.lat, lon: pos.lon },
+        destino: meta,
+        salida: null,
+        vehiculo: valorDe('vehiculo'),
+        nivel: valorDe('nivel'),
+        evitar: puntosEvitar(),
+      });
+      const nueva = datos.rutas?.[0];
+      if (!nueva) return null;
+      if (practica) nueva.practica = practica;
+      mostrarResultados(datos, { ajustar: false, avisos: false });
+      return nueva;
+    },
+    alOpinar: (opinion) => guardarOpinion(opinion),
     alTerminar: () => {
       if (!estabaCompleto) pantallaCompleta(false);
     },
@@ -625,19 +682,21 @@ function empezarViaje(ev, i, ensayo) {
   });
 }
 
-function mostrarResultados({ rutas: lista, horario, trafico }) {
+function mostrarResultados({ rutas: lista, horario = {}, trafico = {} }, { ajustar = true, avisos = true } = {}) {
   rutas = lista;
   const mensajes = [];
-  if (horario.mensaje) {
+  if (!avisos) {
+    // Recálculo durante el viaje o práctica: los avisos de la búsqueda no aplican.
+  } else if (horario.mensaje) {
     mensajes.push(el('p', { class: 'aviso aviso-hora' }, el('strong', {}, horario.enHoraPunta ? 'Hora punta. ' : 'Atento a la hora. '), horario.mensaje));
   }
-  if (rutas.length === 1) mensajes.push(el('p', { class: 'aviso aviso-info' }, 'La ruta más rápida también es la más tranquila que encontré.'));
-  if (trafico.mensaje) mensajes.push(el('p', { class: 'aviso aviso-info' }, trafico.mensaje));
-  mostrarMensajes(...mensajes);
+  if (avisos && rutas.length === 1) mensajes.push(el('p', { class: 'aviso aviso-info' }, 'La ruta más rápida también es la más tranquila que encontré.'));
+  if (avisos && trafico.mensaje) mensajes.push(el('p', { class: 'aviso aviso-info' }, trafico.mensaje));
+  if (avisos) mostrarMensajes(...mensajes);
 
   $('resultados').replaceChildren(...rutas.map(tarjeta));
   lineas = rutas.map((ruta, i) => L.polyline(ruta.geometria, estiloLinea(ruta, false)).on('click', () => seleccionar(i)).addTo(capaRutas));
-  seleccionar(0, true);
+  seleccionar(0, ajustar);
 }
 
 $('formulario').addEventListener('submit', async (ev) => {
@@ -661,6 +720,7 @@ $('formulario').addEventListener('submit', async (ev) => {
       salida,
       vehiculo: valorDe('vehiculo'),
       nivel: valorDe('nivel'),
+      evitar: puntosEvitar(),
     });
     mostrarResultados(datos);
     if (window.matchMedia('(max-width: 899px)').matches) $('resultados').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -761,3 +821,281 @@ try {
 } catch {
   // Sin almacenamiento disponible.
 }
+
+// ----- Ver la calle antes de salir (Street View) -----
+
+function enlaceVerCalle(ruta, p) {
+  return el(
+    'a',
+    {
+      class: 'ver-calle',
+      href: enlaceStreetView(p.lat, p.lon, rumboEn(ruta.geometria, p.lat, p.lon)),
+      target: '_blank',
+      rel: 'noopener noreferrer',
+      onclick: (ev) => ev.stopPropagation(),
+    },
+    '👁 Ver cómo es',
+  );
+}
+
+// ----- Batería (scooter o moto eléctrica) -----
+
+const usaBateria = () => ['motoElectrica', 'bici'].includes(valorDe('vehiculo'));
+
+function lineaBateria(ruta) {
+  if (!usaBateria()) return null;
+  const subida = ruta.subidaMetros ?? 0;
+  const autonomia = Number($('autonomia').value);
+  const estimacion = estimarBateria(ruta, autonomia, $('ida-vuelta').checked);
+  const textoSubida = subida >= 15 ? ` Sube ${subida} m en total.` : '';
+  if (!estimacion) return textoSubida ? el('p', { class: 'ruta-datos' }, textoSubida.trim()) : null;
+  const icono = { alcanza: '🔋', justo: '⚠️', noAlcanza: '⛔' }[estimacion.estado];
+  return el('p', { class: `bateria bateria-${estimacion.estado}` }, `${icono} ${estimacion.texto}${textoSubida}`);
+}
+
+function actualizarCampoBateria() {
+  $('campo-bateria').hidden = !usaBateria();
+}
+
+function repintarTarjetas() {
+  if (!rutas.length) return;
+  $('resultados').replaceChildren(...rutas.map(tarjeta));
+  seleccionar(Math.min(seleccionada, rutas.length - 1));
+}
+
+{
+  const bateria = leer('bateria', {});
+  if (bateria.autonomia) $('autonomia').value = bateria.autonomia;
+  $('ida-vuelta').checked = Boolean(bateria.idaYVuelta);
+  const alCambiar = () => {
+    guardar('bateria', { autonomia: Number($('autonomia').value) || null, idaYVuelta: $('ida-vuelta').checked });
+    repintarTarjetas();
+  };
+  $('autonomia').addEventListener('change', alCambiar);
+  $('ida-vuelta').addEventListener('change', alCambiar);
+  document.querySelectorAll('input[name="vehiculo"]').forEach((r) => r.addEventListener('change', actualizarCampoBateria));
+  actualizarCampoBateria();
+}
+
+// ----- Opiniones y puntos a evitar (solo en este equipo) -----
+
+const MAX_EVITAR = 20;
+const puntosEvitar = () => leer('evitar', []).map(({ lat, lon }) => ({ lat, lon }));
+
+function guardarOpinion(opinion) {
+  const opiniones = leer('opiniones', []);
+  opiniones.push({ ...opinion, fecha: new Date().toISOString(), vehiculo: valorDe('vehiculo') });
+  guardar('opiniones', opiniones.slice(-200));
+
+  // Puntos difíciles: se evitarán en las próximas rutas (sin repetir los que están a menos de 40 m).
+  const evitar = leer('evitar', []);
+  const cerca = (a, b) => Math.hypot((a.lat - b.lat) * 110_574, (a.lon - b.lon) * 108_900) < 40;
+  for (const d of opinion.dificiles) if (!evitar.some((e) => cerca(e, d))) evitar.push(d);
+  guardar('evitar', evitar.slice(-MAX_EVITAR));
+
+  const mensajes = [];
+  if (opinion.dificiles.length) {
+    mensajes.push(el('p', { class: 'aviso aviso-info' }, `Anotado: evitaré ${opinion.dificiles.length === 1 ? 'ese punto' : `esos ${opinion.dificiles.length} puntos`} en tus próximas rutas.`));
+  }
+  if (opinion.practica && opinion.llego) mensajes.push(registrarPractica(opinion.practica, opinion.valoracion));
+  if (mensajes.length) mostrarMensajes(...mensajes.filter(Boolean));
+  pintarDatosGuardados();
+}
+
+// ----- Favoritos -----
+
+const ICONO_FAVORITO = { Casa: '🏠', Trabajo: '💼', Academia: '🎓' };
+const MAX_FAVORITOS = 8;
+let ultimoCampo = { cual: 'origen', cuando: 0 };
+for (const cual of ['origen', 'destino']) $(cual).addEventListener('focus', () => (ultimoCampo = { cual, cuando: Date.now() }));
+
+function pintarFavoritos() {
+  const lista = leer('favoritos', []);
+  const caja = $('favoritos');
+  caja.hidden = !lista.length;
+  caja.replaceChildren(
+    el('span', { class: 'favoritos-titulo' }, 'Tus lugares:'),
+    ...lista.map((f, k) =>
+      el(
+        'span',
+        { class: 'chip-favorito' },
+        el('button', { type: 'button', class: 'chip', title: f.etiqueta, onclick: () => usarFavorito(f) }, `${ICONO_FAVORITO[f.nombre] ?? '⭐'} ${f.nombre}`),
+        el('button', { type: 'button', class: 'chip-quitar', 'aria-label': `Quitar ${f.nombre}`, title: `Quitar ${f.nombre}`, onclick: () => quitarFavorito(k) }, '×'),
+      ),
+    ),
+  );
+}
+
+// Va al campo que tocaste hace poco; si no, al primero vacío.
+function usarFavorito(f) {
+  const reciente = Date.now() - ultimoCampo.cuando < 8000;
+  const cual = reciente ? ultimoCampo.cual : !puntos.origen ? 'origen' : 'destino';
+  $(cual).value = f.etiqueta;
+  ponerPunto(cual, f.lat, f.lon, { etiqueta: f.etiqueta, texto: f.etiqueta, exacto: true });
+  mapa.panTo([f.lat, f.lon]);
+}
+
+function quitarFavorito(k) {
+  const lista = leer('favoritos', []);
+  lista.splice(k, 1);
+  guardar('favoritos', lista);
+  pintarFavoritos();
+}
+
+function guardarFavorito(cual, nombre) {
+  const p = puntos[cual];
+  if (!p || !nombre) return;
+  const lista = leer('favoritos', []).filter((f) => f.nombre.toLowerCase() !== nombre.toLowerCase());
+  lista.push({ nombre, etiqueta: p.etiqueta ?? $(cual).value.trim(), lat: p.lat, lon: p.lon });
+  guardar('favoritos', lista.slice(-MAX_FAVORITOS));
+  pintarFavoritos();
+}
+
+// Botón "☆ Guardar" junto al punto elegido, con nombres rápidos.
+function botonGuardarFavorito(cual) {
+  const caja = el('span', { class: 'guardar-favorito' });
+  const abrir = el('button', { type: 'button', class: 'enlace-boton' }, '☆ Guardar como favorito');
+  abrir.addEventListener('click', () => {
+    const otro = el('input', { type: 'text', maxlength: '20', placeholder: 'Otro nombre', 'aria-label': 'Nombre del lugar' });
+    const listo = (nombre) => {
+      guardarFavorito(cual, nombre.trim());
+      caja.replaceChildren(el('span', { class: 'guardado' }, `✓ Guardado como "${nombre.trim()}"`));
+    };
+    caja.replaceChildren(
+      ...['Casa', 'Trabajo', 'Academia'].map((n) => el('button', { type: 'button', class: 'chip', onclick: () => listo(n) }, `${ICONO_FAVORITO[n]} ${n}`)),
+      otro,
+      el('button', { type: 'button', class: 'chip', onclick: () => otro.value.trim() && listo(otro.value) }, 'Guardar'),
+    );
+    otro.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        if (otro.value.trim()) listo(otro.value);
+      }
+    });
+  });
+  caja.append(abrir);
+  return caja;
+}
+
+pintarFavoritos();
+
+// ----- Modo práctica -----
+
+const NIVELES_PRACTICA = {
+  1: { corto: '1 · Calles', meta: 'Calles tranquilas y pocos giros a la izquierda: para acostumbrarte al vehículo.' },
+  2: { corto: '2 · Izquierdas', meta: 'Calles tranquilas con giros a la izquierda donde hay poco tráfico.' },
+  3: { corto: '3 · Cruces', meta: 'Cruzar avenidas medianas, mejor con semáforo, sin recorrerlas.' },
+  4: { corto: '4 · Avenida', meta: 'Unas cuadras por una avenida mediana y vuelta a calles tranquilas.' },
+};
+const PRACTICAS_PARA_SUBIR = 3;
+const progresoPractica = () => leer('practica', { desbloqueado: 1, completadas: {} });
+
+function pintarNiveles() {
+  const { desbloqueado, completadas } = progresoPractica();
+  const actual = Number(document.querySelector('input[name="nivelPractica"]:checked')?.value) || desbloqueado;
+  $('practica-niveles').replaceChildren(
+    el('legend', {}, 'Nivel'),
+    ...Object.entries(NIVELES_PRACTICA).map(([n, d]) => {
+      const bloqueado = Number(n) > desbloqueado;
+      return el(
+        'label',
+        { title: bloqueado ? `Completa ${PRACTICAS_PARA_SUBIR} prácticas del nivel anterior para desbloquearlo` : d.meta },
+        el('input', { type: 'radio', name: 'nivelPractica', value: n, disabled: bloqueado, checked: Number(n) === Math.min(actual, desbloqueado) }),
+        el('span', {}, `${bloqueado ? '🔒 ' : ''}${d.corto}`),
+      );
+    }),
+  );
+  const nivel = Number(document.querySelector('input[name="nivelPractica"]:checked')?.value) || 1;
+  const hechas = completadas[nivel] ?? 0;
+  $('practica-meta').textContent = `${NIVELES_PRACTICA[nivel].meta} Llevas ${hechas} ${hechas === 1 ? 'práctica' : 'prácticas'} en este nivel.`;
+}
+$('practica-niveles').addEventListener('change', pintarNiveles);
+
+// Cuenta una práctica terminada; tres sin estrés desbloquean el nivel siguiente.
+function registrarPractica(nivel, valoracion) {
+  const progreso = progresoPractica();
+  if (valoracion === 'estresante') {
+    pintarNiveles();
+    return el('p', { class: 'aviso aviso-info' }, 'Gracias por contarlo. Repite este nivel con calma; no cuenta para subir hasta que se sienta tranquilo.');
+  }
+  progreso.completadas[nivel] = (progreso.completadas[nivel] ?? 0) + 1;
+  let texto = `¡Bien! Llevas ${progreso.completadas[nivel]} de ${PRACTICAS_PARA_SUBIR} prácticas del nivel ${nivel}.`;
+  if (progreso.completadas[nivel] >= PRACTICAS_PARA_SUBIR && progreso.desbloqueado === nivel && nivel < 4) {
+    progreso.desbloqueado = nivel + 1;
+    texto = `🎉 ¡Desbloqueaste el nivel ${nivel + 1}! ${NIVELES_PRACTICA[nivel + 1].meta}`;
+  }
+  guardar('practica', progreso);
+  pintarNiveles();
+  return el('p', { class: 'aviso aviso-info' }, texto);
+}
+
+$('practica-ubicacion').addEventListener('click', () => {
+  if (!('geolocation' in navigator)) return mostrarMensajes(el('p', { class: 'aviso aviso-error' }, 'Este navegador no puede darme tu ubicación.'));
+  mostrarMensajes(el('p', { class: 'cargando' }, 'Buscando tu ubicación…'));
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      $('origen').value = 'Tu ubicación';
+      ponerPunto('origen', pos.coords.latitude, pos.coords.longitude, { etiqueta: 'Tu ubicación', texto: 'Tu ubicación' });
+      mapa.setView([pos.coords.latitude, pos.coords.longitude], 15);
+      mostrarMensajes();
+    },
+    (error) =>
+      mostrarMensajes(el('p', { class: 'aviso aviso-error' }, error.code === 1 ? 'Activa el permiso de ubicación para usar tu posición.' : 'No pude obtener tu ubicación.')),
+    { enableHighAccuracy: true, timeout: 15000 },
+  );
+});
+
+$('practica-armar').addEventListener('click', async () => {
+  const boton = $('practica-armar');
+  try {
+    if ($('origen').value.trim() && !puntos.origen) await asegurarPunto('origen');
+    if (!puntos.origen) throw new Error('Elige desde dónde sales: escribe el punto "Desde" o toca "Usar mi ubicación".');
+    boton.disabled = true;
+    boton.textContent = 'Armando…';
+    mostrarMensajes(el('p', { class: 'cargando' }, 'Armando un circuito de práctica cerca de ti…'));
+    const nivel = Number(document.querySelector('input[name="nivelPractica"]:checked')?.value) || 1;
+    const datos = await api('/api/practica', {
+      origen: { lat: puntos.origen.lat, lon: puntos.origen.lon },
+      minutos: Number(document.querySelector('input[name="minutos"]:checked').value),
+      nivel,
+      vehiculo: valorDe('vehiculo'),
+      semilla: leer('semillaPractica', 1),
+      evitar: puntosEvitar(),
+    });
+    guardar('semillaPractica', datos.siguienteSemilla); // la próxima vez, otro circuito
+    datos.ruta.practica = { nivel: datos.nivel };
+    mostrarResultados({ rutas: [datos.ruta] }, { avisos: false });
+    mostrarMensajes(
+      el('p', { class: 'aviso aviso-info' }, el('strong', {}, `Práctica nivel ${datos.nivel}: ${datos.titulo}. `), `${datos.meta} Este circuito: ${datos.resumen}.`),
+    );
+    if (window.matchMedia('(max-width: 899px)').matches) $('resultados').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (error) {
+    mostrarMensajes(el('p', { class: 'aviso aviso-error' }, error.message));
+  } finally {
+    boton.disabled = false;
+    boton.textContent = 'Armar práctica';
+  }
+});
+
+pintarNiveles();
+
+// ----- Datos guardados en este equipo -----
+
+function pintarDatosGuardados() {
+  const evitar = leer('evitar', []).length;
+  const boton = $('borrar-datos');
+  if (boton) boton.textContent = evitar ? `Borrar mis datos de este equipo (incluye ${evitar} ${evitar === 1 ? 'punto' : 'puntos'} a evitar)` : 'Borrar mis datos de este equipo';
+}
+
+$('borrar-datos')?.addEventListener('click', () => {
+  if (!window.confirm('¿Borrar tus favoritos, opiniones, puntos a evitar y progreso de práctica de este equipo?')) return;
+  borrarTodo();
+  $('autonomia').value = '';
+  $('ida-vuelta').checked = false;
+  pintarFavoritos();
+  pintarNiveles();
+  pintarDatosGuardados();
+  mostrarMensajes(el('p', { class: 'aviso aviso-info' }, 'Listo: borré los datos guardados en este equipo.'));
+});
+
+pintarDatosGuardados();

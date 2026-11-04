@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import cfg from '../config/tranquilidad.js';
 import { cargarRed } from '../server/vias.js';
 import { aGrados, aMetros, distancia } from '../server/geo.js';
-import { planificar } from '../server/planificador.js';
+import { planificar, practicar, zonasDePuntos } from '../server/planificador.js';
 import { formatoDistancia } from '../server/pasos.js';
 import { snapACiclovia, sobreAvenida } from '../server/snap-ciclovia.js';
 
@@ -164,4 +164,35 @@ test('en bici, si sale de una calle tranquila, no cambia el origen', async () =>
   assert.ok(resultado.rutas.every((r) => r.duracionTotalSegundos === r.duracionSegundos));
   assert.deepEqual(pedidos[0].cuerpo.coordinates[0], [origen.lon, origen.lat]);
   assert.ok(resultado.rutas.every((r) => r.caminataInicial === null && !r.puntosCriticos.some((p) => p.tipo === 'caminata')));
+});
+
+test('los puntos marcados para evitar se mandan como zonas, salvo junto a la salida o la llegada', async () => {
+  const origen = { lat: -12.14, lon: -77.07 };
+  const destino = { lat: -12.11, lon: -77.07 };
+  const zonas = zonasDePuntos([{ lat: -12.125, lon: -77.07 }, { lat: -12.1401, lon: -77.0701 }, { lat: 'x', lon: 1 }], [origen, destino]);
+  assert.equal(zonas.length, 1, 'solo el punto del medio');
+  const [anillo] = zonas[0];
+  assert.equal(anillo.length, 5);
+  assert.deepEqual(anillo[0], anillo[4]);
+
+  pedidos.length = 0;
+  await planificar({ origen, destino, salida: '2026-11-07T11:00', evitar: [{ lat: -12.125, lon: -77.07 }] }, { red, cfg });
+  const conZonas = pedidos.filter((p) => p.cuerpo.options?.avoid_polygons);
+  assert.ok(conZonas.length >= 2, 'las variantes tranquilas llevan las zonas');
+  assert.ok(conZonas.every((p) => JSON.stringify(p.cuerpo.options.avoid_polygons).includes('-12.12')));
+});
+
+test('la práctica pide circuitos que vuelven al punto de salida y resume lo que trae el elegido', async () => {
+  pedidos.length = 0;
+  const salida = { lat: -12.14, lon: -77.07 };
+  const p = await practicar({ origen: salida, minutos: 20, nivel: 2, vehiculo: 'auto', semilla: 1 }, { red, cfg });
+
+  assert.equal(pedidos.length, 4);
+  assert.ok(pedidos.every((q) => q.cuerpo.coordinates.length === 1 && q.cuerpo.options.round_trip.length === 4400));
+  assert.equal(new Set(pedidos.map((q) => q.cuerpo.options.round_trip.seed)).size, 4, 'semillas distintas');
+  assert.ok(pedidos.every((q) => q.cuerpo.options.round_trip.seed > 2000), 'semillas propias del nivel 2');
+  assert.equal(p.nivel, 2);
+  assert.deepEqual(p.ruta.tipos, ['practica']);
+  assert.match(p.resumen, /giros? a la izquierda/);
+  assert.equal(p.siguienteSemilla, 5);
 });

@@ -1031,3 +1031,194 @@ body.mapa-completo .mapa {
 .clase-carrilBici { --color-clase: #2563eb; }
 .clase-sendaCompartida { --color-clase: #9333ea; }
 .barra .clase-carrilBici, .barra .clase-sendaCompartida { background: var(--color-clase); }
+
+/* ----- Favoritos ----- */
+.favoritos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.favoritos-titulo {
+  color: var(--texto-suave);
+  font-size: 0.9rem;
+}
+.chip-favorito {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  background: var(--superficie);
+}
+.chip,
+.chip-quitar,
+.enlace-boton {
+  font: inherit;
+  cursor: pointer;
+}
+.chip {
+  min-height: 36px;
+  padding: 4px 10px;
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  background: var(--primario-claro);
+  color: var(--primario);
+  font-weight: 700;
+}
+.chip-favorito .chip {
+  border: 0;
+  background: none;
+}
+.chip-quitar {
+  width: 32px;
+  min-height: 36px;
+  border: 0;
+  background: none;
+  color: var(--texto-suave);
+  font-size: 1.1rem;
+}
+.guardar-favorito {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.guardar-favorito input {
+  width: 9em;
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  font: inherit;
+}
+.enlace-boton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--primario);
+  font-weight: 700;
+  text-decoration: underline;
+}
+.guardado {
+  color: var(--tranquila);
+  font-weight: 700;
+}
+
+/* ----- Batería ----- */
+.campo-bateria {
+  margin: 4px 0 12px;
+}
+.campo-bateria > label {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.fila-bateria {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.fila-bateria input[type='number'] {
+  width: 6em;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  font: inherit;
+}
+.pista-pequena {
+  margin: 4px 0 8px;
+  color: var(--texto-suave);
+  font-size: 0.85rem;
+}
+.bateria {
+  margin: 4px 0 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.bateria-alcanza { color: var(--tranquila); }
+.bateria-justo { color: var(--alerta); }
+.bateria-noAlcanza { color: var(--error); }
+
+/* ----- Ver la calle (Street View) ----- */
+.ver-calle {
+  display: inline-block;
+  margin: 2px 0 6px;
+  color: var(--primario);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+/* ----- Modo práctica ----- */
+.practica {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+}
+.practica summary {
+  font-weight: 700;
+  cursor: pointer;
+}
+.acciones-practica {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.segmentos input:disabled + span {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.ruta.practica {
+  border-color: var(--primario);
+}
+
+/* ----- Avisar y opinión al terminar el viaje ----- */
+.boton-avisar {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+.viaje-opinion {
+  max-height: 80dvh;
+  overflow-y: auto;
+}
+.opinion-valores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.boton-opinion {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 2px solid rgb(255 255 255 / 0.5);
+  border-radius: 10px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.boton-opinion[aria-pressed='true'] {
+  border-color: #fff;
+  background: #fff;
+  color: var(--primario);
+}
+.opinion-puntos {
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+.opinion-puntos li {
+  margin-bottom: 6px;
+}
+.opinion-puntos input {
+  width: 20px;
+  height: 20px;
+  vertical-align: middle;
+}

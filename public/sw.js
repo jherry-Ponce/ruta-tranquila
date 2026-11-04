@@ -1,7 +1,7 @@
 // Service worker: guarda la interfaz para que la app instalada abra rápido. Las rutas, el mapa y el
 // tráfico necesitan internet, así que /api y los recursos de otros sitios nunca se guardan.
-const CACHE = 'ruta-tranquila-v1';
-const ARCHIVOS = ['/', '/index.html', '/app.js', '/viaje.js', '/estilos.css', '/icono.svg', '/manifest.webmanifest'];
+const CACHE = 'voy-tranqui-v2';
+const ARCHIVOS = ['/', '/index.html', '/app.js', '/viaje.js', '/almacen.js', '/bateria.js', '/enlaces.js', '/estilos.css', '/icono.svg', '/manifest.webmanifest', '/privacidad.html'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ARCHIVOS)).then(() => self.skipWaiting()));

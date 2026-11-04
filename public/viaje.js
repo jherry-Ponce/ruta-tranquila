@@ -1,3 +1,5 @@
+import { enlaceWhatsApp, mensajeEnCamino, mensajeLlegue } from './enlaces.js';
+
 // Modo viaje: sigue tu ubicación sobre la ruta y te guía por voz. La ubicación se queda en el celular.
 // "Ensayo" recorre la ruta solo, a velocidad rápida, para escuchar la guía antes de salir.
 
@@ -97,22 +99,34 @@ export function enlaceSeguirEnGoogle(geometria, acumulado, recorrido, modo = 'dr
   return `https://www.google.com/maps/dir/?${q}`;
 }
 
-export function iniciarViaje(ruta, { mapa, el, ensayo, alRecalcular, alTerminar }) {
-  const P = ruta.geometria.map(aXY);
-  const acumulado = [0];
-  for (let i = 1; i < P.length; i++) acumulado.push(acumulado[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
-  const total = acumulado.at(-1);
-  const pasos = ruta.pasos.map((p) => ({ ...p, dichoLejos: false, dichoAhora: false }));
-  const criticos = ruta.puntosCriticos.filter((p) => p.tipo !== 'trafico').map((p) => ({ ...p, dicho: false }));
-
+// Opciones: alRecalcular(pos) recálculo manual; alDesviarse(pos) → Promise<ruta> recálculo automático;
+// alOpinar(opinion) guarda la opinión del viaje; alTerminar() al cerrar; destino: nombre para los mensajes;
+// practica: { nivel } si es un circuito de práctica.
+export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTerminar, alDesviarse, alOpinar, destino = '', practica = null }) {
+  // La ruta se puede reemplazar a mitad de camino (recálculo automático) sin cortar la guía.
+  let ruta, P, acumulado, total, pasos, criticos;
   let recorrido = 0;
+  function cargarRuta(nueva) {
+    ruta = nueva;
+    P = ruta.geometria.map(aXY);
+    acumulado = [0];
+    for (let i = 1; i < P.length; i++) acumulado.push(acumulado[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+    total = acumulado.at(-1);
+    pasos = ruta.pasos.map((p) => ({ ...p, dichoLejos: false, dichoAhora: false }));
+    criticos = ruta.puntosCriticos.filter((p) => p.tipo !== 'trafico').map((p) => ({ ...p, dicho: false }));
+    recorrido = 0;
+  }
+  cargarRuta(rutaInicial);
+
   let fueraDesde = null;
   let ultimoAvisoFuera = 0;
   let terminado = false;
   let bloqueo = null;
   let buscarEnTodo = false; // tras volver a encender la pantalla
   let repetirSiguiente = false;
-  const marcador = L.circleMarker(ruta.geometria[0], { radius: 9, color: '#fff', weight: 3, fillColor: '#2563eb', fillOpacity: 1 }).addTo(mapa);
+  let fraseRetomar = 'Retomando la guía.';
+  let recalculando = false;
+  const marcador = L.circleMarker(rutaInicial.geometria[0], { radius: 9, color: '#fff', weight: 3, fillColor: '#2563eb', fillOpacity: 1 }).addTo(mapa);
 
   const caja = document.getElementById('viaje');
   const instruccion = el('p', { class: 'viaje-instruccion' }, 'Preparando…');
@@ -133,6 +147,12 @@ export function iniciarViaje(ruta, { mapa, el, ensayo, alRecalcular, alTerminar 
   // También en el ensayo, para probarlo en casa antes de salir.
   // En la app no hace falta: la guía sigue con la pantalla apagada.
   const botonBolsillo = el('button', { type: 'button', class: 'boton-secundario', hidden: nativo, onclick: () => activarBolsillo() }, 'Modo bolsillo');
+  // Avisar a la familia por WhatsApp con la hora estimada de llegada (se arma al tocarlo).
+  const botonAvisar = el('a', { class: 'boton-secundario boton-avisar', target: '_blank', rel: 'noopener noreferrer', href: '#' }, 'Avisar');
+  botonAvisar.addEventListener('click', () => {
+    const duracion = ruta.duracionTotalSegundos ?? ruta.duracionSegundos ?? 0;
+    botonAvisar.href = enlaceWhatsApp(mensajeEnCamino(destino, duracion * (1 - recorrido / (total || 1))));
+  });
   caja.replaceChildren(
     el(
       'p',
@@ -145,7 +165,14 @@ export function iniciarViaje(ruta, { mapa, el, ensayo, alRecalcular, alTerminar 
     ),
     instruccion,
     detalle,
-    el('div', { class: 'viaje-botones' }, botonRecalcular, botonBolsillo, el('button', { type: 'button', class: 'boton-principal', onclick: () => terminar(true) }, 'Terminar')),
+    el(
+      'div',
+      { class: 'viaje-botones' },
+      botonRecalcular,
+      botonBolsillo,
+      !ensayo && !practica && botonAvisar,
+      el('button', { type: 'button', class: 'boton-principal', onclick: () => terminar(true, true) }, 'Terminar'),
+    ),
     ...(ensayo ? [] : [enlaceGoogle]),
   );
   caja.hidden = false;
@@ -161,12 +188,14 @@ export function iniciarViaje(ruta, { mapa, el, ensayo, alRecalcular, alTerminar 
 
     if (d > FUERA_DE_RUTA) {
       fueraDesde ??= Date.now();
-      if (Date.now() - fueraDesde > 8000 && Date.now() - ultimoAvisoFuera > 60000) {
+      if (Date.now() - fueraDesde > 8000 && !recalculando && Date.now() - ultimoAvisoFuera > 45000) {
         ultimoAvisoFuera = Date.now();
-        hablar('Te saliste de la ruta. Cuando puedas, estaciónate en un lugar seguro y revisa el mapa.', true);
-        instruccion.textContent = 'Te saliste de la ruta';
-        detalle.textContent = 'Estaciónate en un lugar seguro y toca "Recalcular desde aquí".';
-        botonRecalcular.hidden = false;
+        if (alDesviarse && !ensayo) {
+          recalcularSolo();
+        } else {
+          hablar('Te saliste de la ruta. Cuando puedas, estaciónate en un lugar seguro y revisa el mapa.', true);
+          mostrarFueraDeRuta();
+        }
       }
       return;
     }
@@ -175,12 +204,7 @@ export function iniciarViaje(ruta, { mapa, el, ensayo, alRecalcular, alTerminar 
     botonRecalcular.hidden = true;
     recorrido = Math.max(recorrido, s);
 
-    if (total - recorrido < 25) {
-      hablar('Llegaste a tu destino.', true);
-      instruccion.textContent = 'Llegaste a tu destino';
-      detalle.textContent = '';
-      return terminar(false, 4000);
-    }
+    if (total - recorrido < 25) return llegar();
 
     for (const c of criticos) {
       const faltan = c.metros - recorrido;
@@ -195,22 +219,140 @@ export function iniciarViaje(ruta, { mapa, el, ensayo, alRecalcular, alTerminar 
     const faltan = siguiente.inicioMetros - recorrido;
     instruccion.textContent = siguiente.maniobra;
     detalle.textContent = `En ${redondear(faltan)} m${siguiente.avisos[0] ? ` · ${siguiente.avisos[0]}` : ''}`;
+    let acabaDeRetomar = false;
     if (repetirSiguiente) {
-      // Al retomar se repite la próxima indicación aunque ya se hubiera dicho.
+      // Al retomar (pantalla encendida de nuevo o ruta nueva) se repite la próxima indicación.
       repetirSiguiente = false;
+      const frase = fraseRetomar;
+      fraseRetomar = 'Retomando la guía.';
       if (faltan > AVISO_AHORA) {
         siguiente.dichoLejos = true;
-        hablar(`Retomando la guía. En ${redondear(faltan)} metros, ${siguiente.maniobra.charAt(0).toLowerCase()}${siguiente.maniobra.slice(1)}.`, true);
+        hablar(`${frase} En ${redondear(faltan)} metros, ${siguiente.maniobra.charAt(0).toLowerCase()}${siguiente.maniobra.slice(1)}.`, true);
         return;
       }
+      hablar(frase, true);
+      acabaDeRetomar = true;
     }
     if (!siguiente.dichoAhora && faltan <= AVISO_AHORA) {
       siguiente.dichoAhora = siguiente.dichoLejos = true;
-      hablar(`Ahora, ${siguiente.maniobra.charAt(0).toLowerCase()}${siguiente.maniobra.slice(1)}.`, true);
+      hablar(`Ahora, ${siguiente.maniobra.charAt(0).toLowerCase()}${siguiente.maniobra.slice(1)}.`, !acabaDeRetomar);
     } else if (!siguiente.dichoLejos && faltan <= AVISO_LEJOS) {
       siguiente.dichoLejos = true;
       hablar(`En ${redondear(faltan)} metros, ${siguiente.maniobra.charAt(0).toLowerCase()}${siguiente.maniobra.slice(1)}.`);
     }
+  }
+
+  function mostrarFueraDeRuta() {
+    instruccion.textContent = 'Te saliste de la ruta';
+    detalle.textContent = 'Estaciónate en un lugar seguro y toca "Recalcular desde aquí".';
+    botonRecalcular.hidden = false;
+  }
+
+  // Recálculo automático: busca otra ruta tranquila desde donde estás, sin que toques el celular.
+  async function recalcularSolo() {
+    recalculando = true;
+    hablar('Tranquilo, te desviaste. Busco otra ruta tranquila desde aquí; sigue con calma.', true);
+    instruccion.textContent = 'Buscando otra ruta tranquila…';
+    detalle.textContent = 'Sigue con calma; no hace falta tocar el celular.';
+    try {
+      const nueva = await alDesviarse(posicionActual);
+      if (terminado) return;
+      if (!nueva) throw new Error('Sin ruta nueva');
+      cargarRuta(nueva);
+      fueraDesde = null;
+      botonRecalcular.hidden = true;
+      buscarEnTodo = true;
+      repetirSiguiente = true;
+      fraseRetomar = 'Listo, encontré otra ruta tranquila.';
+      if (posicionActual) actualizar(posicionActual.lat, posicionActual.lon);
+    } catch {
+      if (terminado) return;
+      hablar('No pude buscar otra ruta. Cuando puedas, estaciónate en un lugar seguro y revisa el mapa.', true);
+      mostrarFueraDeRuta();
+    } finally {
+      recalculando = false;
+    }
+  }
+
+  function llegar() {
+    hablar(practica ? '¡Terminaste la práctica! Bien hecho.' : 'Llegaste a tu destino.', true);
+    detenerSeguimiento(false);
+    if (ensayo || !alOpinar) {
+      instruccion.textContent = practica ? 'Práctica terminada' : 'Llegaste a tu destino';
+      detalle.textContent = '';
+      setTimeout(cerrar, 4000);
+      return;
+    }
+    mostrarOpinion(true);
+  }
+
+  // "¿Qué tal estuvo?": una valoración y los puntos difíciles, que se evitarán en las próximas rutas.
+  function mostrarOpinion(llego) {
+    const pasados = criticos.filter((c) => (c.tipo === 'cruce' || c.tipo === 'tramo') && c.metros <= recorrido + 30);
+    let valoracion = null;
+    const elegidos = new Set();
+    const opciones = [
+      ['tranquilo', '😌 Tranquilo'],
+      ['normal', '🙂 Normal'],
+      ['estresante', '😰 Estresante'],
+    ];
+    const botones = opciones.map(([valor, texto]) =>
+      el('button', { type: 'button', class: 'boton-opinion', 'aria-pressed': 'false', 'data-valor': valor }, texto),
+    );
+    botones.forEach((b) =>
+      b.addEventListener('click', () => {
+        valoracion = b.dataset.valor;
+        botones.forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+      }),
+    );
+    const lista = pasados.length
+      ? el(
+          'ul',
+          { class: 'opinion-puntos' },
+          pasados.map((c, k) =>
+            el(
+              'li',
+              {},
+              el(
+                'label',
+                {},
+                el('input', { type: 'checkbox', onchange: (ev) => (ev.target.checked ? elegidos.add(k) : elegidos.delete(k)) }),
+                ` ${c.titulo}`,
+              ),
+            ),
+          ),
+        )
+      : null;
+    const listo = () => {
+      if (valoracion || elegidos.size) {
+        try {
+          alOpinar({
+            valoracion,
+            llego,
+            practica: practica ? practica.nivel : null,
+            metros: Math.round(recorrido),
+            dificiles: [...elegidos].map((k) => ({ lat: pasados[k].lat, lon: pasados[k].lon, titulo: pasados[k].titulo })),
+          });
+        } catch (error) {
+          console.warn('Al guardar la opinión:', error);
+        }
+      }
+      cerrar();
+    };
+    const avisarLlegue = el(
+      'a',
+      { class: 'boton-secundario boton-avisar', target: '_blank', rel: 'noopener noreferrer', href: enlaceWhatsApp(mensajeLlegue(destino)) },
+      'Avisar que llegué',
+    );
+    caja.replaceChildren(
+      el('p', { class: 'viaje-instruccion' }, llego ? (practica ? '¡Práctica terminada! 👏' : 'Llegaste 🙂') : 'Viaje terminado'),
+      el('p', { class: 'viaje-detalle' }, '¿Qué tal estuvo?'),
+      el('div', { class: 'opinion-valores' }, botones),
+      lista && el('p', { class: 'viaje-detalle' }, '¿Algún punto fue difícil? Márcalo y lo evitaré la próxima vez:'),
+      lista,
+      el('div', { class: 'viaje-botones' }, llego && !practica && avisarLlegue, el('button', { type: 'button', class: 'boton-principal', onclick: listo }, 'Listo')),
+    );
+    caja.classList.add('viaje-opinion');
   }
 
   // La pantalla debe quedar encendida: con la pantalla apagada el navegador deja de dar la ubicación.
@@ -355,11 +497,19 @@ export function iniciarViaje(ruta, { mapa, el, ensayo, alRecalcular, alTerminar 
     detener = () => navigator.geolocation.clearWatch(id);
   }
 
-  hablar(ensayo ? 'Ensayo de la ruta.' : 'Iniciando viaje. Maneja con calma.', true);
+  hablar(
+    practica
+      ? `${ensayo ? 'Ensayo de la' : 'Iniciando la'} práctica de nivel ${practica.nivel}. Vuelves al punto de partida.`
+      : ensayo
+        ? 'Ensayo de la ruta.'
+        : 'Iniciando viaje. Maneja con calma.',
+    true,
+  );
 
-  function terminar(cancelar, espera = 0) {
+  // Apaga GPS, voz y bloqueo de pantalla; la barra sigue visible (por ejemplo, para la opinión).
+  function detenerSeguimiento(cancelar) {
     terminado = true;
-    // Pase lo que pase al apagar el GPS o la voz, la barra del viaje se cierra.
+    // Pase lo que pase al apagar el GPS o la voz, la barra del viaje se puede cerrar.
     for (const paso of [
       () => detener(),
       () => document.removeEventListener('visibilitychange', alCambiarVisibilidad),
@@ -373,14 +523,24 @@ export function iniciarViaje(ruta, { mapa, el, ensayo, alRecalcular, alTerminar 
         console.warn('Al terminar el viaje:', error);
       }
     }
-    setTimeout(() => {
-      marcador.remove();
-      caja.hidden = true;
-      try {
-        alTerminar?.();
-      } catch (error) {
-        console.warn('Al cerrar el viaje:', error);
-      }
-    }, espera);
+  }
+
+  function cerrar() {
+    marcador.remove();
+    caja.hidden = true;
+    caja.classList.remove('viaje-opinion');
+    try {
+      alTerminar?.();
+    } catch (error) {
+      console.warn('Al cerrar el viaje:', error);
+    }
+  }
+
+  // opinar: solo el botón "Terminar"; si ya recorriste algo, pregunta qué tal estuvo antes de cerrar.
+  function terminar(cancelar, opinar = false) {
+    if (terminado) return cerrar();
+    detenerSeguimiento(cancelar);
+    if (opinar && !ensayo && alOpinar && recorrido > 500) mostrarOpinion(false);
+    else cerrar();
   }
 }

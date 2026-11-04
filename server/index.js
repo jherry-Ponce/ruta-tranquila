@@ -1,4 +1,4 @@
-// Servidor de Ruta Tranquila: sirve la página y hace de intermediario con OpenRouteService y TomTom.
+// Servidor de Voy Tranqui: sirve la página y hace de intermediario con OpenRouteService y TomTom.
 // No guarda ubicaciones ni direcciones: no hay base de datos y los registros no incluyen datos del pedido.
 
 import http from 'node:http';
@@ -11,7 +11,7 @@ import { cargarRed, ARCHIVO_VIAS } from './vias.js';
 import { ErrorServicio, hayKeyOrs } from './ors.js';
 import { buscarDireccion, direccionDePunto, sugerirLugares } from './direcciones.js';
 import { hayKeyTomTom } from './trafico.js';
-import { planificar } from './planificador.js';
+import { planificar, practicar } from './planificador.js';
 import { aGrados } from './geo.js';
 
 const PUBLICO = fileURLToPath(new URL('../public/', import.meta.url));
@@ -59,6 +59,17 @@ function limitador(maximo, ventanaMs) {
 const puedeBuscarRutas = limitador(6, 60_000);
 const puedeGeocodificar = limitador(60, 60_000);
 const puedeSugerir = limitador(120, 60_000);
+const puedeReportarError = limitador(30, 60_000);
+
+// Puntos que la persona marcó para evitar: solo coordenadas válidas dentro de Lima, como máximo 20.
+function puntosEvitar(lista) {
+  if (!Array.isArray(lista)) return [];
+  const { sur, norte, oeste, este } = cfg.limitesLima;
+  return lista
+    .slice(0, 20)
+    .map((p) => ({ lat: Number(p?.lat), lon: Number(p?.lon) }))
+    .filter(({ lat, lon }) => lat >= sur && lat <= norte && lon >= oeste && lon <= este);
+}
 
 async function leerJson(req) {
   // Vercel ya entrega el cuerpo leído.
@@ -122,6 +133,26 @@ const API = {
     return { ciclovias };
   },
 
+  // Errores de la interfaz en los celulares: quedan en los registros del servidor (en Vercel: pestaña Logs).
+  // Solo texto técnico; la interfaz no envía ubicaciones ni direcciones.
+  async '/api/errores'(cuerpo) {
+    if (!puedeReportarError()) return { ok: false };
+    const texto = (v, max) => String(v ?? '').slice(0, max);
+    console.error(
+      '[error-interfaz]',
+      JSON.stringify({
+        mensaje: texto(cuerpo.mensaje, 300),
+        pila: texto(cuerpo.pila, 1500),
+        archivo: texto(cuerpo.archivo, 200),
+        linea: Number(cuerpo.linea) || null,
+        pagina: texto(cuerpo.pagina, 100),
+        app: Boolean(cuerpo.app),
+        navegador: texto(cuerpo.navegador, 200),
+      }),
+    );
+    return { ok: true };
+  },
+
   async '/api/rutas'(cuerpo) {
     if (!red) throw new ErrorServicio('Faltan los datos de vías. Ejecuta: npm run datos', 503);
     const origen = validarPunto(cuerpo.origen, 'origen');
@@ -133,7 +164,20 @@ const API = {
     if (!puedeBuscarRutas()) throw new ErrorServicio('Demasiadas búsquedas de rutas en un minuto. Espera un momento.', 429);
     const vehiculo = ['auto', 'motoElectrica', 'bici'].includes(cuerpo.vehiculo) ? cuerpo.vehiculo : 'auto';
     const nivel = ['principiante', 'intermedio', 'normal'].includes(cuerpo.nivel) ? cuerpo.nivel : 'principiante';
-    return planificar({ origen, destino, salida, vehiculo, nivel, depurar: Boolean(cuerpo.depurar) }, { red, cfg });
+    const evitar = puntosEvitar(cuerpo.evitar);
+    return planificar({ origen, destino, salida, vehiculo, nivel, evitar, depurar: Boolean(cuerpo.depurar) }, { red, cfg });
+  },
+
+  // Circuito de práctica que sale y vuelve al mismo punto.
+  async '/api/practica'(cuerpo) {
+    if (!red) throw new ErrorServicio('Faltan los datos de vías. Ejecuta: npm run datos', 503);
+    const origen = validarPunto(cuerpo.origen, 'salida');
+    if (!puedeBuscarRutas()) throw new ErrorServicio('Demasiadas búsquedas de rutas en un minuto. Espera un momento.', 429);
+    const vehiculo = ['auto', 'motoElectrica', 'bici'].includes(cuerpo.vehiculo) ? cuerpo.vehiculo : 'auto';
+    const minutos = [10, 20, 30].includes(Number(cuerpo.minutos)) ? Number(cuerpo.minutos) : 20;
+    const nivel = [1, 2, 3, 4].includes(Number(cuerpo.nivel)) ? Number(cuerpo.nivel) : 1;
+    const semilla = Math.max(1, Math.min(10_000, Math.floor(Number(cuerpo.semilla)) || 1));
+    return practicar({ origen, minutos, nivel, vehiculo, semilla, evitar: puntosEvitar(cuerpo.evitar) }, { red, cfg });
   },
 };
 
@@ -199,7 +243,7 @@ export default async function manejar(req, res) {
 }
 
 if (!process.env.VERCEL) http.createServer(manejar).listen(PUERTO, HOST, () => {
-  console.log(`Ruta Tranquila lista en http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PUERTO}`);
+  console.log(`Voy Tranqui lista en http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PUERTO}`);
   console.log(`  OpenRouteService: ${hayKeyOrs() ? 'key configurada' : 'FALTA ORS_API_KEY en .env'}`);
   console.log(`  TomTom (tráfico): ${hayKeyTomTom() ? 'key configurada' : 'sin key (opcional)'}`);
   if (red) console.log(`  Vías de OSM: ${red.info.total} (datos del ${red.info.datosOsm?.slice(0, 10) ?? '?'})`);

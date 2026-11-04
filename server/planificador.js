@@ -19,7 +19,8 @@ import { analizarGiros } from './giros.js';
 import { snapACiclovia } from './snap-ciclovia.js';
 
 const ALTERNATIVAS = { target_count: 3, weight_factor: 1.6, share_factor: 0.6 };
-const BASE = { extra_info: ['waytype'], instructions: true, language: 'es', units: 'm' };
+// elevation: subida y bajada de cada ruta, para estimar la batería de scooters y motos eléctricas.
+const BASE = { extra_info: ['waytype'], instructions: true, language: 'es', units: 'm', elevation: true };
 const ERRORES_DEFINITIVOS = new Set(['sin_key', 'key_invalida', 'limite', 'red', 2009, 2010]);
 
 const NOMBRE_CLASE = { autopista: 'vía rápida', primaria: 'avenida grande', secundaria: 'avenida mediana' };
@@ -42,6 +43,8 @@ function leerRuta(feature, origen) {
     duracion: props.summary?.duration ?? 0,
     pasos,
     waytype: props.extras?.waytype?.values ?? [],
+    subida: props.ascent ?? 0,
+    bajada: props.descent ?? 0,
   };
 }
 
@@ -59,8 +62,8 @@ async function conAlternativas(perfil, cuerpo, origen) {
 
 // Una ruta que evita recorrer ciertas clases de vía. Si ORS la rechaza (por ejemplo porque las zonas
 // dejan aislado un punto), se descarta sin cortar la búsqueda.
-async function sinAvenidas(cuerpo, red, extremos, clases, preference, origen, perfil = 'driving-car') {
-  const zonas = clases.size ? zonasAEvitar(red, extremos, clases) : [];
+async function sinAvenidas(cuerpo, red, extremos, clases, preference, origen, perfil = 'driving-car', zonasExtra = []) {
+  const zonas = [...(clases.size ? zonasAEvitar(red, extremos, clases) : []), ...zonasExtra];
   const opciones = zonas.length ? { avoid_polygons: { type: 'MultiPolygon', coordinates: zonas } } : {};
   if (perfil !== 'driving-car') opciones.avoid_features = ['steps'];
   try {
@@ -176,7 +179,59 @@ function resumen(ruta, nota) {
   };
 }
 
-export async function planificar({ origen, destino, salida, depurar, vehiculo = 'auto', nivel = 'principiante' }, { red, cfg }) {
+// Cuadrado de ~80 m alrededor de cada punto a evitar. Se omiten los que están junto a la salida o la llegada,
+// porque ORS no puede salir ni llegar dentro de una zona prohibida.
+const MAX_PUNTOS_EVITAR = 20;
+export function zonasDePuntos(puntos, extremos = []) {
+  const validos = (Array.isArray(puntos) ? puntos : [])
+    .map((p) => ({ lat: Number(p?.lat), lon: Number(p?.lon) }))
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon))
+    .filter((p) => extremos.every((e) => distancia(aMetros([p.lon, p.lat]), aMetros([e.lon, e.lat])) > 150))
+    .slice(0, MAX_PUNTOS_EVITAR);
+  return validos.map(({ lat, lon }) => {
+    const dLat = 40 / 110_574;
+    const dLon = 40 / (111_320 * Math.cos((lat * Math.PI) / 180));
+    return [[[lon - dLon, lat - dLat], [lon + dLon, lat - dLat], [lon + dLon, lat + dLat], [lon - dLon, lat + dLat], [lon - dLon, lat - dLat]]];
+  });
+}
+
+// Formato que recibe la interfaz para cada ruta (rutas normales y de práctica).
+function formatearRuta(r, { tipos, vehiculo, snapInicio = null, duracionTotal = r.duracion }) {
+  return {
+    id: r.origen,
+    tipos,
+    distanciaMetros: Math.round(r.distancia),
+    duracionSegundos: Math.round(r.duracion),
+    duracionTotalSegundos: Math.round(duracionTotal),
+    subidaMetros: Math.round(r.subida ?? 0),
+    bajadaMetros: Math.round(r.bajada ?? 0),
+    trafico: r.trafico
+      ? { confiable: r.trafico.confiable, duracionSegundos: r.trafico.duracionSegundos, retrasoSegundos: r.trafico.retrasoSegundos }
+      : null,
+    puntaje: r.puntaje,
+    puntosCriticos: puntosCriticos(r, vehiculo, snapInicio),
+    // Tramo a pie desde la salida real hasta la entrada a la ciclovía, para dibujarlo en el mapa.
+    caminataInicial: snapInicio
+      ? {
+          metros: snapInicio.distanciaCaminata,
+          minutos: snapInicio.minutosCaminata,
+          geometria: [[snapInicio.origenLat, snapInicio.origenLon], [snapInicio.lat, snapInicio.lon]].map(([lat, lon]) => [
+            Number(lat.toFixed(6)),
+            Number(lon.toFixed(6)),
+          ]),
+        }
+      : null,
+    pasos: armarPasos(r.pasos, r.coordenadas, r.analisis),
+    geometria: r.coordenadas.map(([lon, lat]) => [Number(lat.toFixed(6)), Number(lon.toFixed(6))]),
+    // Para pintar en el mapa qué partes van por ciclovía, calle, avenida o a pie.
+    tramosPorClase: tramosPorClase(r.analisis.segmentos),
+    enlaceGoogleMaps: enlaceGoogleMaps(r).replace('travelmode=driving', vehiculo === 'bici' ? 'travelmode=bicycling' : 'travelmode=driving'),
+  };
+}
+
+export async function planificar({ origen, destino, salida, depurar, vehiculo = 'auto', nivel = 'principiante', evitar = [] }, { red, cfg }) {
+  // Puntos que la persona marcó como difíciles en viajes anteriores: las rutas tranquilas los esquivan.
+  const zonasExtra = zonasDePuntos(evitar, [origen, destino]);
   // En modo bici, si la salida está sobre una avenida, se ajusta el origen a una ciclovía cercana. No se ajusta el destino:
   // la ciclovía geométricamente más cercana puede ser una vía costera o aislada y obligar a ORS
   // a dar una vuelta larga para entrar en ella. ORS debe calcular el último tramo al destino real.
@@ -205,22 +260,22 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
     // Bicicleta o monopatín (R.M. 127-2021-MTC: solo ciclovías, calles o jirones): nunca por avenidas.
     pedidos = [
       // Sin zonas: el perfil de bici elige por sí mismo las ciclovías, incluso las que van junto a una avenida.
-      sinAvenidas(cuerpo, red, extremos, new Set(['autopista']), 'recommended', 'bici-ciclovias', 'cycling-regular'),
-      sinAvenidas(cuerpo, red, extremos, medianas, 'recommended', 'bici', 'cycling-regular'),
-      sinAvenidas(cuerpo, red, extremos, medianas, 'shortest', 'bici-corta', 'cycling-regular'),
+      sinAvenidas(cuerpo, red, extremos, new Set(['autopista']), 'recommended', 'bici-ciclovias', 'cycling-regular', zonasExtra),
+      sinAvenidas(cuerpo, red, extremos, medianas, 'recommended', 'bici', 'cycling-regular', zonasExtra),
+      sinAvenidas(cuerpo, red, extremos, medianas, 'shortest', 'bici-corta', 'cycling-regular', zonasExtra),
     ];
   } else {
     // La moto eléctrica nunca va por vías rápidas, ni siquiera en la ruta más rápida.
     const base = vehiculo === 'motoElectrica' ? new Set(['autopista']) : new Set();
     const rapida = base.size
-      ? sinAvenidas(cuerpo, red, extremos, base, 'fastest', 'rapida')
+      ? sinAvenidas(cuerpo, red, extremos, base, 'fastest', 'rapida', 'driving-car', zonasExtra)
       : conAlternativas('driving-car', cuerpo, 'rapida').then((rutas) => rutas.map((ruta) => ({ ruta })));
     const variantes = {
       principiante: [[grandes, 'shortest', 'sin-grandes-corta'], [medianas, 'shortest', 'sin-medianas-corta']],
       intermedio: [[grandes, 'fastest', 'sin-grandes'], [grandes, 'shortest', 'sin-grandes-corta']],
       normal: [[grandes, 'fastest', 'sin-grandes']],
     }[nivel];
-    pedidos = [rapida, ...variantes.map(([clases, pref, id]) => sinAvenidas(cuerpo, red, extremos, clases, pref, id))];
+    pedidos = [rapida, ...variantes.map(([clases, pref, id]) => sinAvenidas(cuerpo, red, extremos, clases, pref, id, 'driving-car', zonasExtra))];
   }
   const resultados = (await Promise.all(pedidos)).flat();
 
@@ -302,34 +357,7 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
     if (r === tranquila) tipos.push('tranquila');
     if (r === rapidaFinal) tipos.push('rapida');
     if (!tipos.length) tipos.push('alternativa');
-    return {
-      id: r.origen,
-      tipos,
-      distanciaMetros: Math.round(r.distancia),
-      duracionSegundos: Math.round(r.duracion),
-      duracionTotalSegundos: Math.round(tiempoTotal(r)),
-      trafico: r.trafico
-        ? { confiable: r.trafico.confiable, duracionSegundos: r.trafico.duracionSegundos, retrasoSegundos: r.trafico.retrasoSegundos }
-        : null,
-      puntaje: r.puntaje,
-      puntosCriticos: puntosCriticos(r, vehiculo, snapInicio),
-      // Tramo a pie desde la salida real hasta la entrada a la ciclovía, para dibujarlo en el mapa.
-      caminataInicial: snapInicio
-        ? {
-            metros: snapInicio.distanciaCaminata,
-            minutos: snapInicio.minutosCaminata,
-            geometria: [[snapInicio.origenLat, snapInicio.origenLon], [snapInicio.lat, snapInicio.lon]].map(([lat, lon]) => [
-              Number(lat.toFixed(6)),
-              Number(lon.toFixed(6)),
-            ]),
-          }
-        : null,
-      pasos: armarPasos(r.pasos, r.coordenadas, r.analisis),
-      geometria: r.coordenadas.map(([lon, lat]) => [Number(lat.toFixed(6)), Number(lon.toFixed(6))]),
-      // Para pintar en el mapa qué partes van por ciclovía, calle, avenida o a pie.
-      tramosPorClase: tramosPorClase(r.analisis.segmentos),
-      enlaceGoogleMaps: enlaceGoogleMaps(r).replace('travelmode=driving', vehiculo === 'bici' ? 'travelmode=bicycling' : 'travelmode=driving'),
-    };
+    return formatearRuta(r, { tipos, vehiculo, snapInicio, duracionTotal: tiempoTotal(r) });
   });
 
   return {
@@ -337,5 +365,110 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
     horario,
     trafico,
     ...(depurar ? { comparacion: [...seleccion.map((r) => resumen(r, 'elegida')), ...comparacion] } : {}),
+  };
+}
+
+// ----- Modo práctica -----
+// Circuito que sale y vuelve al mismo punto (round_trip de ORS) para practicar cerca de casa. Cada nivel
+// agrega una dificultad nueva; se piden 3 circuitos distintos y se elige el que mejor practica ese nivel.
+
+const izquierdas = (r) => r.pasos.filter((p) => p.type === 0 || p.type === 2).length;
+const crucesDe = (r, clase) => r.analisis.cruces.filter((c) => c.clase === clase);
+const metrosEn = (r, clase) => r.analisis.metrosPorClase[clase] ?? 0;
+
+export const NIVELES_PRACTICA = {
+  1: {
+    titulo: 'Calles tranquilas, pocos giros a la izquierda',
+    meta: 'Acostumbrarte al auto o la moto sin cruzar avenidas.',
+    evitar: ['autopista', 'primaria', 'secundaria'],
+    valorar: (r) => -15 * r.analisis.cruces.length - 3 * izquierdas(r) - metrosEn(r, 'secundaria') / 20 - metrosEn(r, 'primaria') / 10,
+  },
+  2: {
+    titulo: 'Calles tranquilas con giros a la izquierda',
+    meta: 'Practicar giros a la izquierda donde hay poco tráfico.',
+    evitar: ['autopista', 'primaria', 'secundaria'],
+    valorar: (r) => -15 * r.analisis.cruces.length + 4 * Math.min(izquierdas(r), 5) - metrosEn(r, 'secundaria') / 20 - metrosEn(r, 'primaria') / 10,
+  },
+  3: {
+    titulo: 'Cruzar avenidas medianas',
+    meta: 'Cruzar avenidas medianas, mejor con semáforo, sin recorrerlas.',
+    evitar: ['autopista', 'primaria'],
+    valorar: (r) => {
+      const medianas = crucesDe(r, 'secundaria');
+      return 6 * Math.min(medianas.length, 3) + 4 * medianas.filter((c) => c.semaforo).length - 12 * crucesDe(r, 'primaria').length - metrosEn(r, 'secundaria') / 25;
+    },
+  },
+  4: {
+    titulo: 'Un tramo corto por avenida mediana',
+    meta: 'Manejar unas cuadras por una avenida mediana y volver a calles tranquilas.',
+    evitar: ['autopista', 'primaria'],
+    valorar: (r) => {
+      const mediana = metrosEn(r, 'secundaria');
+      const enRango = mediana >= 200 && mediana <= 1500 ? 20 : -Math.abs(mediana - 600) / 50;
+      return enRango - 12 * crucesDe(r, 'primaria').length - metrosEn(r, 'primaria') / 20;
+    },
+  },
+};
+
+// Velocidad media en calles tranquilas, con esquinas y paradas (ORS suele alargar un poco el circuito).
+const METROS_POR_MINUTO = { auto: 220, motoElectrica: 220, bici: 160 };
+const CIRCUITOS_POR_NIVEL = 4; // el plan gratuito de ORS admite ~40 rutas por minuto
+
+export async function practicar({ origen, minutos = 20, nivel = 1, vehiculo = 'auto', semilla = 1, evitar = [] }, { red, cfg }) {
+  const datosNivel = NIVELES_PRACTICA[nivel] ?? NIVELES_PRACTICA[1];
+  const perfil = vehiculo === 'bici' ? 'cycling-regular' : 'driving-car';
+  const largo = Math.round(Math.min(12_000, Math.max(2_000, minutos * METROS_POR_MINUTO[vehiculo])));
+  const extremos = [
+    [origen.lon, origen.lat],
+    [origen.lon, origen.lat],
+  ];
+  const zonas = [...zonasAEvitar(red, extremos, new Set(datosNivel.evitar)), ...zonasDePuntos(evitar, [origen])];
+  const opciones = { ...(zonas.length ? { avoid_polygons: { type: 'MultiPolygon', coordinates: zonas } } : {}) };
+  if (perfil !== 'driving-car') opciones.avoid_features = ['steps'];
+
+  const intentos = await Promise.all(
+    Array.from({ length: CIRCUITOS_POR_NIVEL }, (_, k) => k).map(async (k) => {
+      // Cada nivel usa sus propias semillas para que no repita los mismos circuitos.
+      const seed = nivel * 1000 + semilla + k;
+      try {
+        const fc = await pedirRutas(perfil, {
+          ...BASE,
+          coordinates: [extremos[0]],
+          options: { ...opciones, round_trip: { length: largo, points: 3, seed } },
+        });
+        return leerRuta(fc.features[0], `practica-${nivel}-${seed}`);
+      } catch (error) {
+        if (ERRORES_DEFINITIVOS.has(error.codigo) && error.codigo !== 2009 && error.codigo !== 2010) throw error;
+        return null;
+      }
+    }),
+  );
+  const candidatas = intentos.filter(Boolean);
+  if (!candidatas.length) throw new ErrorServicio('No pude armar un circuito de práctica desde ese punto. Prueba desde otra calle.', 422);
+
+  for (const r of candidatas) {
+    r.analisis = analizarRuta(r.coordenadas, r.waytype, red, vehiculo);
+    r.analisis.giros = analizarGiros(r.pasos, r.analisis.acumulado, cfg.giros);
+    r.puntaje = calcularPuntaje(r.analisis, null, cfg, vehiculo);
+  }
+  const elegida = candidatas.toSorted((a, b) => datosNivel.valorar(b) - datosNivel.valorar(a))[0];
+  // Lo que de verdad trae el circuito elegido: en barrios rodeados de avenidas no siempre se puede evitar todo.
+  const nIzq = izquierdas(elegida);
+  const nCruces = elegida.analisis.cruces.length;
+  const conSemaforo = elegida.analisis.cruces.filter((c) => c.semaforo).length;
+  const enAvenida = Math.round(metrosEn(elegida, 'secundaria') + metrosEn(elegida, 'primaria'));
+  const resumen = [
+    `${nIzq} ${nIzq === 1 ? 'giro' : 'giros'} a la izquierda`,
+    nCruces ? `${nCruces} ${nCruces === 1 ? 'cruce' : 'cruces'} de avenida${conSemaforo ? ` (${conSemaforo} con semáforo)` : ''}` : 'sin cruces de avenida',
+    enAvenida >= 80 ? `${formatoDistancia(enAvenida)} por avenida` : null,
+  ].filter(Boolean).join(' · ');
+  return {
+    nivel: Number(nivel) in NIVELES_PRACTICA ? Number(nivel) : 1,
+    titulo: datosNivel.titulo,
+    meta: datosNivel.meta,
+    resumen,
+    siguienteSemilla: semilla + CIRCUITOS_POR_NIVEL,
+    girosIzquierda: izquierdas(elegida),
+    ruta: formatearRuta(elegida, { tipos: ['practica'], vehiculo }),
   };
 }

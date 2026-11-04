@@ -4,7 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0f5e57" />
-    <title>Ruta Tranquila</title>
+    <title>Voy Tranqui · rutas tranquilas en Lima</title>
+    <meta name="description" content="Voy Tranqui: rutas por calles tranquilas en Lima para quienes están aprendiendo a manejar auto, moto eléctrica, bici o scooter." />
     <link
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -25,8 +26,8 @@
 
       <main class="panel">
         <header class="cabecera">
-          <h1>Ruta Tranquila</h1>
-          <p class="lema">Calles más calmadas para quienes están aprendiendo a manejar en Lima.</p>
+          <h1>Voy Tranqui</h1>
+          <p class="lema">Maneja con confianza por Lima: calles más calmadas para quienes están aprendiendo.</p>
         </header>
 
         <p class="aviso-seguridad" role="note">
@@ -37,6 +38,7 @@
         <div id="aviso-config" class="aviso aviso-error" hidden></div>
 
         <form id="formulario" class="formulario trayecto" autocomplete="off">
+          <div id="favoritos" class="favoritos" aria-label="Tus lugares guardados" hidden></div>
           <div class="campo">
             <label for="origen">Desde</label>
             <div class="fila-entrada">
@@ -69,6 +71,15 @@
             <label><input type="radio" name="vehiculo" value="motoElectrica" /><span>Moto eléctrica</span></label>
             <label><input type="radio" name="vehiculo" value="bici" /><span>Bici o monopatín</span></label>
           </fieldset>
+          <div id="campo-bateria" class="campo-bateria" hidden>
+            <label for="autonomia">🔋 Si es eléctrico, ¿cuántos km le quedan a la batería?</label>
+            <div class="fila-bateria">
+              <input id="autonomia" type="number" min="1" max="300" step="1" inputmode="numeric" placeholder="Ej: 25" aria-describedby="nota-bateria" />
+              <span>km</span>
+              <label class="opcion"><input id="ida-vuelta" type="checkbox" /> Ida y vuelta</label>
+            </div>
+            <p id="nota-bateria" class="pista-pequena">Opcional. Te aviso si te alcanza, contando las subidas.</p>
+          </div>
           <fieldset class="segmentos">
             <legend>¿Cuánta experiencia tienes?</legend>
             <label><input type="radio" name="nivel" value="principiante" checked /><span>Recién aprendo</span></label>
@@ -87,6 +98,29 @@
           <p id="modo-mapa" class="pista" hidden></p>
         </form>
 
+        <details id="practica" class="practica">
+          <summary>🎓 Practicar cerca de casa</summary>
+          <p class="pista-pequena">
+            Un circuito corto que sale y vuelve al mismo punto. Cada nivel agrega una dificultad nueva; al completar 3
+            prácticas tranquilas se desbloquea el siguiente.
+          </p>
+          <fieldset class="segmentos" id="practica-niveles">
+            <legend>Nivel</legend>
+          </fieldset>
+          <p id="practica-meta" class="pista-pequena"></p>
+          <fieldset class="segmentos">
+            <legend>Duración</legend>
+            <label><input type="radio" name="minutos" value="10" /><span>10 min</span></label>
+            <label><input type="radio" name="minutos" value="20" checked /><span>20 min</span></label>
+            <label><input type="radio" name="minutos" value="30" /><span>30 min</span></label>
+          </fieldset>
+          <p class="pista-pequena">Sale desde el punto "Desde" o desde donde estás ahora.</p>
+          <div class="acciones-practica">
+            <button type="button" id="practica-ubicacion" class="boton-secundario">📍 Usar mi ubicación</button>
+            <button type="button" id="practica-armar" class="boton-principal">Armar práctica</button>
+          </div>
+        </details>
+
         <div id="mensajes" aria-live="polite"></div>
         <section id="resultados" class="resultados" aria-label="Rutas sugeridas"></section>
         <div id="viaje" class="viaje" hidden aria-live="assertive"></div>
@@ -95,8 +129,8 @@
           <h2>Antes de salir</h2>
           <ul>
             <li>
-              La ruta se calcula para vehículos, no para bicicletas. Si tu moto o scooter supera la velocidad permitida
-              en ciclovías, no las uses aunque veas una en el camino.
+              Elige bien en qué vas: en "Bici o monopatín" la ruta usa ciclovías; en auto o moto, no. Si tu moto o
+              scooter supera la velocidad permitida en ciclovías, no las uses aunque veas una en el camino.
             </li>
             <li>
               Las rutas tranquilas tienen más giros. Revisa las instrucciones antes de salir y, si te pierdes, detente en
@@ -107,10 +141,11 @@
           </ul>
           <h2>Tu privacidad</h2>
           <p>
-            No guardamos tu ubicación ni tus direcciones. Para buscar las direcciones y calcular la ruta, el servidor
-            las envía a TomTom (si está activado) y a OpenRouteService. El mapa se carga desde OpenStreetMap. El botón
-            de Google Maps envía la ruta a Google solo si lo tocas.
+            No guardamos tu ubicación ni tus direcciones en nuestro servidor. Para buscar direcciones y calcular la ruta,
+            el servidor las envía a TomTom y a OpenRouteService. Tus favoritos, opiniones y progreso se guardan solo en
+            este equipo. <a href="privacidad.html">Política de privacidad completa</a>.
           </p>
+          <p><button type="button" id="borrar-datos" class="boton-secundario">Borrar mis datos de este equipo</button></p>
           <p class="creditos">
             Datos de mapas © colaboradores de OpenStreetMap (ODbL). Rutas: OpenRouteService. Tráfico: TomTom.
           </p>

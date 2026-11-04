@@ -77,7 +77,25 @@ aprendiendo a manejar (auto, moto eléctrica) o va en bici/monopatín. Producci�
 - Pruebas reales: Plaza San Miguel aparece primero; Hospital Rebagliati se encuentra por nombre; Juan de Aliaga 457 y Manuel Candamo 820 siguen funcionando. Pruebas simuladas cubren orden, límites, duplicados, respaldo y direcciones numeradas.
 - Fuente: https://docs.tomtom.com/search-api/documentation/search-service/fuzzy-search .
 
+## Funciones para el usuario (2026-11-04)
+
+- Nombre visible: Voy Tranqui (título, encabezado, manifest). Política en `public/privacidad.html`: si cambia qué datos se usan, actualizarla.
+- Datos del usuario solo en su equipo (`public/almacen.js`, prefijo `voytranqui:`): favoritos, opiniones, puntos a evitar (máx. 20), progreso de práctica, batería. Botón "Borrar mis datos de este equipo".
+- Puntos a evitar: se envían en `/api/rutas` y `/api/practica` como `evitar`; el servidor los convierte en cuadrados de ~80 m (`zonasDePuntos`), omite los que están a menos de 150 m de la salida o llegada y no los guarda.
+- Street View: enlace "Ver cómo es" en cada punto crítico (Maps URLs `map_action=pano`, rumbo de la ruta). Solo se abre si se toca.
+- Recálculo automático: si sales de la ruta más de 8 s, `viaje.js` llama `alDesviarse` (una vez cada 45 s) y reemplaza la ruta sin cortar la guía (`cargarRuta`). Si falla, vuelve al aviso de estacionarse.
+- Batería (`public/bateria.js`): ORS con `elevation: true`; 100 m de subida ≈ 1,5 km; margen de 20 %. Es una estimación y la interfaz lo dice.
+- Opinión al llegar o al terminar tras 500 m: valoración y puntos difíciles. Avisar por WhatsApp con `wa.me` (lo envía la persona).
+- Modo práctica (`practicar` en `server/planificador.js`): ORS `round_trip`, 4 circuitos por nivel con semillas propias del nivel (nivel×1000 + semilla), se elige con `valorar` del nivel. El resumen dice lo que trae el circuito real; en barrios rodeados de avenidas no siempre se puede cumplir el nivel. 3 prácticas sin "estresante" desbloquean el siguiente.
+- Límite: el plan gratuito de ORS admite ~40 rutas por minuto; cada búsqueda usa 3-4 y cada práctica 4.
+- Errores en producción: `window.onerror` → `/api/errores` → `console.error('[error-interfaz]')` (Vercel → Logs; en Hobby se guardan poco tiempo). Sin ubicaciones.
+
+## Versión 2 (pendiente, en una rama aparte; no empezar sin acuerdo)
+
+- Pasar los mapas de los tiles de OpenStreetMap (su política no admite uso intensivo) a un proveedor con plan gratuito antes de lanzar.
+- Mejorar la búsqueda (15-40 s): mostrar la primera ruta apenas esté y guardar búsquedas repetidas.
+- Errores: un registro persistente (los logs de Vercel Hobby duran poco).
+
 ## Ideas abiertas
 
-- Cambiar los textos visibles de la web de "Ruta Tranquila" a "Voy Tranqui" (pendiente de aprobar).
 - Publicar en Play Store (USD 25) cuando se quiera comercializar: misma llave de firma y mismo id.

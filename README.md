@@ -1,4 +1,4 @@
-# Ruta Tranquila
+# Voy Tranqui
 
 Mini app web para quienes están aprendiendo a manejar moto, moto eléctrica, scooter o auto en Lima y Callao. Sugiere rutas por calles con menos avenidas grandes, aunque tarden un poco más, y muestra los cruces y tramos difíciles que no se pueden evitar.
 
@@ -86,6 +86,13 @@ Con `HOST=0.0.0.0`, cualquier persona conectada a tu Wi-Fi puede usar la app y g
   - **Retomar:** al volver a encender la pantalla, la guía busca tu posición en todo lo que falta del recorrido y repite la próxima indicación ("Retomando la guía…"), en vez de decir que te saliste de la ruta.
   - **Seguir con Google Maps:** abre la navegación de Google Maps desde donde estés hasta el destino, con hasta 3 puntos de paso de lo que falta de la ruta tranquila. Google Maps sí guía con la pantalla apagada, pero entre esos puntos puede elegir otras calles.
 - **Mapa:** la ruta elegida se pinta por tramos (ciclovía, calle tranquila, calle con movimiento, avenida, a pie) con su leyenda. El botón de la bici muestra toda la red de ciclovías de Lima (se descarga una vez, ~65 KB) y el botón ⛶ pone el mapa en pantalla completa; al iniciar un viaje o ensayo pasa a pantalla completa solo y vuelve al terminar. En Android, "atrás" sale de la pantalla completa.
+- **Favoritos:** guarda Casa, Trabajo u otros lugares y úsalos con un toque (solo en tu equipo).
+- **Ver cómo es:** cada punto crítico abre Street View mirando hacia donde vas.
+- **Batería:** en moto eléctrica o monopatín indica cuántos km te quedan y la tarjeta dice si alcanza, contando las subidas.
+- **Recálculo automático:** si te desvías, busca otra ruta tranquila y te avisa por voz, sin tocar el celular.
+- **Avisar:** manda por WhatsApp tu hora de llegada o "Ya llegué".
+- **¿Qué tal estuvo?:** al llegar puedes marcar puntos difíciles; las próximas rutas los evitan.
+- **Practicar cerca de casa:** circuitos de 10 a 30 min con 4 niveles; 3 prácticas tranquilas desbloquean el siguiente.
 - **Ensayar recorrido:** recorre la ruta sola, a unos 40 m por segundo, para escuchar la guía antes de salir.
 
 ### Instalarla en el celular (PWA) y usar la ubicación

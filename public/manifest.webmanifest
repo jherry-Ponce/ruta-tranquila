@@ -1,7 +1,7 @@
 {
-  "name": "Ruta Tranquila",
-  "short_name": "Ruta Tranquila",
-  "description": "Rutas por calles tranquilas en Lima para quienes están aprendiendo a manejar.",
+  "name": "Voy Tranqui",
+  "short_name": "Voy Tranqui",
+  "description": "Maneja con confianza por Lima: rutas por calles tranquilas para quienes están aprendiendo.",
   "lang": "es",
   "start_url": "/",
   "scope": "/",
