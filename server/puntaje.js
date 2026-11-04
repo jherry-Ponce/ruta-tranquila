@@ -6,11 +6,13 @@ const NOMBRES_CLASE = {
   secundaria: 'avenidas medianas',
   primaria: 'avenidas grandes',
   autopista: 'vías rápidas',
-  ciclovia: 'ciclovías',
+  ciclovia: 'ciclovías separadas',
+  carrilBici: 'carriles bici señalizados',
+  sendaCompartida: 'sendas compartidas con peatones',
   vereda: 'veredas o parques (a pie)',
 };
 
-const ORDEN_CLASES = ['ciclovia', 'residencial', 'menor', 'secundaria', 'primaria', 'autopista', 'vereda'];
+const ORDEN_CLASES = ['ciclovia', 'carrilBici', 'sendaCompartida', 'residencial', 'menor', 'secundaria', 'primaria', 'autopista', 'vereda'];
 
 const CRUCE_SINGULAR = { autopista: 'vía rápida', primaria: 'avenida grande', secundaria: 'avenida mediana' };
 const CRUCE_PLURAL = { autopista: 'vías rápidas', primaria: 'avenidas grandes', secundaria: 'avenidas medianas' };

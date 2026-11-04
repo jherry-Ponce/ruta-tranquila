@@ -23,7 +23,7 @@ const MARGEN_TRAMO = 60; // m: un toque así de cerca de un tramo de la misma v�
 const TRAMO_MINIMO = 80; // m
 const HUECO_TRAMO = 40; // m: interrupciones más cortas no cortan un tramo
 
-export function analizarRuta(coordenadas, valoresWaytype, red) {
+export function analizarRuta(coordenadas, valoresWaytype, red, vehiculo = 'auto') {
   const P = coordenadas.map(aMetros);
   const n = P.length - 1;
   const acumulado = new Float64Array(P.length);
@@ -62,14 +62,14 @@ export function analizarRuta(coordenadas, valoresWaytype, red) {
     for (const { via, a: c, b: d } of candidatos) {
       if (angulo(a, b, c, d) > ANGULO_SOBRE || puntoEnSegmento(medio, c, d).d > DISTANCIA_SOBRE) continue;
       if (via.desnivel) enDesnivel = true;
-      if (via.clase !== 'menor' && (!sobre || RANGO[via.clase] > RANGO[sobre.clase])) sobre = via;
+      if (PRINCIPALES.has(via.clase) && (!sobre || RANGO[via.clase] > RANGO[sobre.clase])) sobre = via;
     }
     if (SIN_CALZADA.has(waytype[i])) sobre = null;
 
     // Si la ruta va por un puente o túnel, lo que pasa por debajo o por encima no es un cruce.
     if (!enDesnivel) {
       for (const { via, a: c, b: d } of candidatos) {
-        if (via.clase === 'menor' || via.desnivel || via === sobre) continue;
+        if (!PRINCIPALES.has(via.clase) || via.desnivel || via === sobre) continue;
         if (angulo(a, b, c, d) < ANGULO_CRUCE) continue;
         const t = contacto(a, b, c, d, TOLERANCIA_CRUCE);
         if (t === null) continue;
@@ -81,7 +81,30 @@ export function analizarRuta(coordenadas, valoresWaytype, red) {
       }
     }
 
-    segmentos.push({ indice: i, desde: acumulado[i], largo, clase: sobre ? sobre.clase : claseWaytype, via: sobre });
+    let clase = sobre ? sobre.clase : claseWaytype;
+    let infraestructura = null;
+    if (vehiculo === 'bici' && red.indiceInfraBici && clase !== 'autopista') {
+      let mejor = null;
+      red.indiceInfraBici.buscar(Math.min(a[0], b[0]) - 6, Math.min(a[1], b[1]) - 6, Math.max(a[0], b[0]) + 6, Math.max(a[1], b[1]) + 6, (id) => {
+        const s = segmentoDe(red, id);
+        const separacion = puntoEnSegmento(medio, s.a, s.b).d;
+        if (separacion > 6 || angulo(a, b, s.a, s.b) > ANGULO_SOBRE) return;
+        // Una vereda paralela no demuestra que se utilice un carril de la calzada.
+        const independiente = s.via.clase === 'ciclovia';
+        if (!independiente && SIN_CALZADA.has(waytype[i])) return;
+        const avance = (b[0] - a[0]) * (s.b[0] - s.a[0]) + (b[1] - a[1]) * (s.b[1] - s.a[1]);
+        const opciones = s.via.infraestructura.filter((b) => !b.sentido || b.sentido * avance > 0);
+        const prioridad = { separada: 4, carril: 3, sendaCompartida: 2, compartida: 1 };
+        const tipo = opciones.sort((x, y) => prioridad[y.tipo] - prioridad[x.tipo])[0]?.tipo;
+        if (tipo && (!mejor || separacion < mejor.separacion)) mejor = { tipo, separacion };
+      });
+      infraestructura = mejor?.tipo ?? null;
+      if (infraestructura === 'separada') clase = 'ciclovia';
+      else if (infraestructura === 'carril') clase = 'carrilBici';
+      else if (infraestructura === 'sendaCompartida') clase = 'sendaCompartida';
+      // Compartir con autos conserva la clase y los riesgos de la calle original.
+    }
+    segmentos.push({ indice: i, desde: acumulado[i], largo, clase, infraestructura, via: sobre });
   }
 
   const metrosPorClase = {};

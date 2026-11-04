@@ -57,6 +57,26 @@ aprendiendo a manejar (auto, moto eléctrica) o va en bici/monopatín. Producci�
 - Dirección confirmada por el usuario: Jirón Manuel Candamo 820, Lince = lat -12.0816676, lon -77.0280865. TomTom devolvía un punto 1,64 km al oeste aunque lo etiquetaba como exacto. La corrección vive en `server/ubicaciones-confirmadas.js`, aplica a búsqueda y sugerencias y no se extiende a otros números ni distritos.
 - Enlaces de Google Maps: se acepta un punto explícito del lugar (`!3d...!4d...`, `query` o `q` con coordenadas); `@lat,lon` solo es el centro de cámara y no se usa como destino. Los enlaces cortos se expanden con redirecciones manuales solo a hosts de Google Maps permitidos. No se consulta Google Routes.
 
+## Infraestructura ciclista y revisión de Magdalena
+
+- Descarga: geometrías independientes (highway=cycleway y sendas designadas) y cycleway, cycleway:left/right/both sobre calles. track = separada; lane = carril; shared_lane/share_busway = compartida con vehículos. separate remite a otra geometría: no duplicarla. bicycle=yes no prueba protección.
+- Interpretación en server/infraestructura-bici.js y conversión en scripts/lib/convertir-osm.js. Campos: o = id OSM, b = infraestructura y sentido, c = clase de la calzada. x=1 marca objetos añadidos solo para la capa ciclista: no entran al índice de avenidas ni generan cruces.
+- Mapa: incluye conexiones cortas antes excluidas por ramal y distingue separada, carril, compartida con autos y con peatones. Los carriles etiquetados sobre calles se representan sobre el eje: no se inventa una geometría lateral.
+- Solo bici usa esa infraestructura al clasificar rutas; se cotejan cercanía, paralelismo y sentido. Carriles y sendas tienen pesos propios (0,8 y 0,65), sin bono protegido. Compartir con autos conserva el riesgo vial original. El snap inicial sigue limitado a geometrías independientes separadas; nunca al eje de una avenida con carril lateral.
+- Corredor confirmado: Avenida Parque Gonzales Prada (24306502, 24306643), Jirón Inclan (24306573), Jirón Miguel Grau (284892467 y otros) tienen cycleway:left=track. oneway:bicycle=yes prevalece sobre el lado izquierdo al determinar sentido. No extender la etiqueta a todas las cuadras por compartir nombre.
+- La réplica global entregó base 2026-07-28: no sustituye la red vial existente de 2026-11-04 UTC. scripts/lib/fusionar-vias.js conserva avenidas y semáforos recientes y añade infraestructura. El corredor se contrastó con la API OSM el 2026-11-03 (hora de Lima). Metadatos separados: datosOsm, datosInfraBici, revisionCorredor. No afirmar que toda la información ciclista es de noviembre.
+- Originales: referencias/osm-lima-original.json.gz y referencias/osm-corredor-magdalena.json.gz. Reproceso sin red: npm run datos -- --desde referencias/osm-lima-original.json.gz. Auditoría: npm run revisar:ciclovias → data/revision-ciclovias-magdalena.json (objetos, no kilómetros ni circuitos completos).
+- Prueba real Juan de Aliaga 457 → La Paz 2551, bici: ORS entrega una alternativa por González Prada e Inclán; se reconoce 35% de ciclovías en ella. No se fuerza su elección: sigue comparándose dificultad, cruces y tiempo. Las etiquetas no garantizan continuidad física de toda la red.
+- Fuentes: https://wiki.openstreetmap.org/wiki/Key:cycleway ; https://wiki.openstreetmap.org/wiki/Key:cycleway:right ; https://wiki.openstreetmap.org/wiki/Tag:highway%3Dcycleway ; https://wiki.openstreetmap.org/wiki/Overpass_API ; https://wiki.openstreetmap.org/wiki/API_v0.6 .
+
+## Búsqueda de lugares por nombre
+
+- Desde y Hasta usan TomTom Fuzzy Search (/search/2/search), que combina direcciones y puntos de interés. El endpoint /geocode no encontraba Plaza San Miguel por nombre. Se conservan las ubicaciones confirmadas y enlaces de Maps antes de consultar al proveedor, y ORS como respaldo.
+- Se consultan 12 resultados limitados a Lima/Callao; se devuelven hasta 6 sugerencias o 5 resultados finales. Nombre completo coincidente primero, luego el centro comercial equivalente y nombres principales que incluyen las palabras consultadas; se conserva el orden del proveedor en empates. No se fija Plaza San Miguel a mano.
+- Sugerencias: nombre, dirección y distrito. La etiqueta del punto conserva nombre y dirección al seleccionarlo. Los POI no se marcan como puerta exacta; las direcciones Point Address mantienen su indicador previo.
+- Pruebas reales: Plaza San Miguel aparece primero; Hospital Rebagliati se encuentra por nombre; Juan de Aliaga 457 y Manuel Candamo 820 siguen funcionando. Pruebas simuladas cubren orden, límites, duplicados, respaldo y direcciones numeradas.
+- Fuente: https://docs.tomtom.com/search-api/documentation/search-service/fuzzy-search .
+
 ## Ideas abiertas
 
 - Cambiar los textos visibles de la web de "Ruta Tranquila" a "Voy Tranqui" (pendiente de aprobar).

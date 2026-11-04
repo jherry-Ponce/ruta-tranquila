@@ -28,62 +28,64 @@ const avisar = (error) => console.warn(`Búsqueda en TomTom falló (${error.mess
 
 const dentro = ({ lat, lon }, l) => lat >= l.sur && lat <= l.norte && lon >= l.oeste && lon <= l.este;
 
-export async function buscarDireccion(texto, limites) {
-  const confirmado = ubicacionConfirmada(texto) ?? await puntoDeEnlace(texto, limites);
-  if (confirmado) return dentro(confirmado, limites) ? [confirmado] : [];
-  if (hayKeyTomTom()) {
-    try {
-      const q = new URLSearchParams({
-        key: process.env.TOMTOM_API_KEY,
-        countrySet: 'PE',
-        language: 'es-419',
-        limit: '5',
-        lat: '-12.06',
-        lon: '-77.03',
-      });
-      const json = await pedirTomTom(`${BASE}/geocode/${encodeURIComponent(texto)}.json?${q}`);
-      const lugares = (json.results ?? [])
-        .map((r) => ({
-          etiqueta: r.address.freeformAddress,
-          lat: r.position.lat,
-          lon: r.position.lon,
-          exacto: r.type === 'Point Address',
-          tipo: r.type,
-        }))
-        .filter((l) => dentro(l, limites));
-      if (lugares.length) return lugares;
-    } catch (error) {
-      avisar(error);
-    }
-  }
-  return (await geocodificar(texto, limites)).filter((l) => dentro(l, limites));
+// Fuzzy Search incluye direcciones y establecimientos; /geocode no encuentra negocios por nombre.
+const normalizarNombre = (texto) => texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+async function buscarTomTom(texto, limites, sugerencias) {
+  const q = new URLSearchParams({
+    key: process.env.TOMTOM_API_KEY, countrySet: 'PE', language: 'es-419',
+    limit: '12', typeahead: String(sugerencias), lat: '-12.09', lon: '-77.03',
+    topLeft: limites.norte + ',' + limites.oeste,
+    btmRight: limites.sur + ',' + limites.este,
+  });
+  const json = await pedirTomTom(BASE + '/search/' + encodeURIComponent(texto) + '.json?' + q);
+  const consulta = normalizarNombre(texto);
+  const prioridad = (lugar) => {
+    if (lugar.tipo !== 'POI') return 3;
+    const nombre = normalizarNombre(lugar.nombre);
+    if (nombre === consulta) return 0;
+    if (nombre.replace(/^centro comercial /, '') === consulta) return 1;
+    const palabras = consulta.split(' ');
+    const coincide = palabras.every((p) => nombre.split(' ').some((n) => n.startsWith(p)));
+    if (coincide && (nombre === palabras[0] || nombre.startsWith(palabras[0] + ' '))) return 1.5;
+    return coincide ? 2 : 3;
+  };
+  const vistos = new Set();
+  return (json.results ?? []).map((r) => {
+    const direccion = r.address?.freeformAddress ?? '';
+    const nombre = r.poi?.name || [r.address?.streetName, r.address?.streetNumber].filter(Boolean).join(' ') || direccion.split(',')[0];
+    return {
+      nombre, direccion,
+      etiqueta: r.poi?.name ? [nombre, direccion].filter(Boolean).join(' · ') : direccion,
+      zona: [r.address?.municipalitySubdivision, r.address?.municipality].filter(Boolean).join(', '),
+      lat: r.position?.lat, lon: r.position?.lon,
+      // Un punto de interés no garantiza la entrada exacta del edificio.
+      exacto: r.type === 'Point Address', tipo: r.type,
+    };
+  }).filter((l) => {
+    if (!dentro(l, limites)) return false;
+    const clave = l.nombre + ':' + l.lat + ':' + l.lon;
+    if (vistos.has(clave)) return false;
+    vistos.add(clave);
+    return true;
+  }).sort((a, b) => prioridad(a) - prioridad(b)).slice(0, sugerencias ? 6 : 5);
 }
 
-// Sugerencias mientras se escribe: TomTom en modo "typeahead" y, si no da nada, OpenRouteService.
-export async function sugerirLugares(texto, limites) {
+async function buscar(texto, limites, sugerencias) {
   const confirmado = ubicacionConfirmada(texto) ?? await puntoDeEnlace(texto, limites);
   if (confirmado) return dentro(confirmado, limites) ? [confirmado] : [];
   if (hayKeyTomTom()) {
     try {
-      const q = new URLSearchParams({ key: process.env.TOMTOM_API_KEY, countrySet: 'PE', language: 'es-419', limit: '6', typeahead: 'true', lat: '-12.09', lon: '-77.03' });
-      const json = await pedirTomTom(`${BASE}/geocode/${encodeURIComponent(texto)}.json?${q}`);
-      const lugares = (json.results ?? [])
-        .map((r) => ({
-          etiqueta: r.address.freeformAddress,
-          nombre: [r.address.streetName, r.address.streetNumber].filter(Boolean).join(' ') || r.address.freeformAddress.split(',')[0],
-          zona: [r.address.municipalitySubdivision, r.address.municipality].filter(Boolean).join(', '),
-          lat: r.position.lat,
-          lon: r.position.lon,
-          exacto: r.type === 'Point Address',
-        }))
-        .filter((l) => dentro(l, limites));
+      const lugares = await buscarTomTom(texto, limites, sugerencias);
       if (lugares.length) return lugares;
-    } catch (error) {
-      avisar(error);
-    }
+    } catch (error) { avisar(error); }
   }
-  return autocompletar(texto, limites);
+  const lugares = await (sugerencias ? autocompletar(texto, limites) : geocodificar(texto, limites));
+  return lugares.filter((l) => dentro(l, limites));
 }
+
+export const buscarDireccion = (texto, limites) => buscar(texto, limites, false);
+export const sugerirLugares = (texto, limites) => buscar(texto, limites, true);
 
 export async function direccionDePunto(lat, lon) {
   if (hayKeyTomTom()) {

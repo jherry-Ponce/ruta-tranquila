@@ -15,6 +15,9 @@ const MAX_NODOS = 4096;
 export function cargarRed(archivo = ARCHIVO_VIAS) {
   const datos = JSON.parse(readFileSync(archivo, 'utf8'));
   const vias = datos.vias.map((v) => ({
+    idOsm: v.o ?? null,
+    soloBici: Boolean(v.x),
+    infraestructura: v.b ?? (v.c === 'ciclovia' ? [{ tipo: 'separada', lado: 'independiente', sentido: 0 }] : []),
     nombre: v.n,
     semaforos: (v.s ?? []).map(aMetros),
     clase: v.c,
@@ -23,13 +26,15 @@ export function cargarRed(archivo = ARCHIVO_VIAS) {
     puntos: v.g.slice(0, MAX_NODOS).map(aMetros),
   }));
   const indice = new IndiceSegmentos(150);
+  const indiceInfraBici = new IndiceSegmentos(150);
   const indiceCiclovias = new IndiceSegmentos(150);
   vias.forEach((via, i) => {
     for (let j = 0; j < via.puntos.length - 1; j++) {
       const id = i * MAX_NODOS + j;
-      if (via.clase === 'ciclovia' && !via.ramal) {
+      if (via.infraestructura.length) indiceInfraBici.agregar(via.puntos[j], via.puntos[j + 1], id);
+      if (via.clase === 'ciclovia' && via.infraestructura.some((b) => b.tipo === 'separada') && !via.ramal) {
         indiceCiclovias.agregar(via.puntos[j], via.puntos[j + 1], id);
-      } else if (via.clase !== 'ciclovia') {
+      } else if (via.clase !== 'ciclovia' && !via.soloBici) {
         indice.agregar(via.puntos[j], via.puntos[j + 1], id);
       }
     }
@@ -38,6 +43,7 @@ export function cargarRed(archivo = ARCHIVO_VIAS) {
     vias,
     indice,
     indiceCiclovias,
+    indiceInfraBici,
     info: { generado: datos.generado, datosOsm: datos.datosOsm, total: vias.length },
   };
 }

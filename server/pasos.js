@@ -72,6 +72,8 @@ export function armarPasos(pasosOrs, coordenadas, analisis) {
     if ((metros.autopista ?? 0) > 50) avisos.push('Vía rápida: ve por el carril derecho y mantén distancia.');
     else if (grande > 50 && grande >= mediana) avisos.push('Avenida grande: ve por el carril derecho, a velocidad constante.');
     else if (mediana > 50) avisos.push('Avenida mediana: atento a combis y buses que se detienen.');
+    if ((metros.carrilBici ?? 0) > 20) avisos.push('Carril bici señalizado: atento a vehículos que lo invadan o giren.');
+    if ((metros.sendaCompartida ?? 0) > 20) avisos.push('Senda compartida: reduce la velocidad y cede el paso a peatones.');
     if ((metros.vereda ?? 0) > 20) avisos.push('Tramo por vereda o parque: bájate y camina.');
 
     // Los cruces se asignan al paso en cuyo recorrido ocurren.

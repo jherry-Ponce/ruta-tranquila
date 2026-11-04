@@ -1027,3 +1027,7 @@ body.mapa-completo .mapa {
   border-radius: 0;
   opacity: 0.7;
 }
+
+.clase-carrilBici { --color-clase: #2563eb; }
+.clase-sendaCompartida { --color-clase: #9333ea; }
+.barra .clase-carrilBici, .barra .clase-sendaCompartida { background: var(--color-clase); }

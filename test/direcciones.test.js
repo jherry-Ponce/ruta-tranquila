@@ -39,3 +39,54 @@ test('expande enlaces cortos sin seguir redirecciones a otros servidores', async
 test('rechaza enlaces ajenos y puntos fuera de Lima', async () => {
   for (const url of ['https://google.com.ejemplo/maps?q=-12,-77', 'https://www.google.com/maps?q=0,0', 'http://www.google.com/maps?q=-12,-77']) await assert.rejects(puntoDeEnlace(url, cfg.limitesLima), { estado: 400 });
 });
+
+function activarTomTom(t) {
+  const anterior = process.env.TOMTOM_API_KEY;
+  process.env.TOMTOM_API_KEY = 'prueba';
+  t.after(() => { if (anterior === undefined) delete process.env.TOMTOM_API_KEY; else process.env.TOMTOM_API_KEY = anterior; });
+}
+const lugarSimulado = (nombre, lat = -12.077006, lon = -77.082336) => ({
+  type: 'POI', poi: { name: nombre }, position: { lat, lon },
+  address: { freeformAddress: 'Avenida La Marina 2100, San Miguel, Lima', municipalitySubdivision: 'San Miguel', municipality: 'Lima' },
+});
+test('busca establecimientos por nombre y prioriza Plaza San Miguel sobre sus tiendas', async (t) => {
+  activarTomTom(t);
+  const mock = t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ results: [lugarSimulado('Fridays Plaza San Miguel'), lugarSimulado('Centro Comercial Plaza San Miguel'), lugarSimulado('Plaza San Miguel'), lugarSimulado('Plaza San Miguel', 0, 0)] })));
+  for (const buscar of [buscarDireccion, sugerirLugares]) {
+    const lugares = await buscar('plaza san miguel', cfg.limitesLima);
+    assert.deepEqual(lugares.map((l) => l.nombre), ['Plaza San Miguel', 'Centro Comercial Plaza San Miguel', 'Fridays Plaza San Miguel']);
+    assert.match(lugares[0].etiqueta, /Plaza San Miguel.*La Marina/);
+    assert.match(lugares[0].zona, /San Miguel/);
+    assert.equal(lugares[0].exacto, false);
+  }
+  const urls = mock.mock.calls.map((c) => new URL(c.arguments[0]));
+  assert.ok(urls.every((u) => u.pathname.includes('/search/2/search/')));
+  assert.equal(urls[0].searchParams.get('typeahead'), 'false');
+  assert.equal(urls[1].searchParams.get('typeahead'), 'true');
+  assert.equal(urls[0].searchParams.get('topLeft'), cfg.limitesLima.norte + ',' + cfg.limitesLima.oeste);
+});
+test('conserva las direcciones numeradas y elimina resultados repetidos', async (t) => {
+  activarTomTom(t);
+  const direccion = { type: 'Point Address', position: { lat: -12.09444, lon: -77.05956 }, address: { freeformAddress: 'Avenida Juan de Aliaga 457, Magdalena del Mar', streetName: 'Avenida Juan de Aliaga', streetNumber: '457' } };
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({results: [direccion, direccion]})));
+  const lugares = await buscarDireccion('Juan de Aliaga 457', cfg.limitesLima);
+  assert.equal(lugares.length, 1); assert.equal(lugares[0].exacto, true);
+  assert.equal(lugares[0].etiqueta, direccion.address.freeformAddress);
+});
+test('si TomTom falla utiliza el respaldo para lugares por nombre', async (t) => {
+  activarTomTom(t);
+  const anterior = process.env.ORS_API_KEY; process.env.ORS_API_KEY = 'prueba';
+  t.after(() => { if (anterior === undefined) delete process.env.ORS_API_KEY; else process.env.ORS_API_KEY = anterior; });
+  t.mock.method(console, 'warn', () => {});
+  t.mock.method(globalThis, 'fetch', async (url) => String(url).includes('api.tomtom.com')
+    ? new Response('{}', {status: 503})
+    : new Response(JSON.stringify({features: [{geometry: {coordinates: [-77.082336, -12.077006]}, properties: {label: 'Plaza San Miguel, Lima', name: 'Plaza San Miguel', layer: 'venue', locality: 'Lima'}}]})));
+  for (const buscar of [buscarDireccion, sugerirLugares]) assert.match((await buscar('Plaza San Miguel', cfg.limitesLima))[0].etiqueta, /Plaza San Miguel/);
+});
+
+test('el hospital principal aparece antes que un estacionamiento cuyo nombre lo contiene', async (t) => {
+  activarTomTom(t);
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({results: [lugarSimulado('Los Portales Hospital Rebagliati'), lugarSimulado('Hospital Edgardo Rebagliati Martins')]})));
+  const lugares = await buscarDireccion('hospital rebagliati', cfg.limitesLima);
+  assert.equal(lugares[0].nombre, 'Hospital Edgardo Rebagliati Martins');
+});

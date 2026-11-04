@@ -113,12 +113,12 @@ const API = {
     return { lugar: await direccionDePunto(lat, lon) };
   },
 
-  // Red de ciclovías de Lima (OSM) para mostrarla en el mapa. Sin los cruces cortos marcados como ramal.
+  // Infraestructura ciclista OSM: incluye conexiones cortas y distingue el tipo de espacio.
   async '/api/ciclovias'() {
     if (!red) throw new ErrorServicio('Faltan los datos de vías. Ejecuta: npm run datos', 503);
     ciclovias ??= red.vias
-      .filter((v) => v.clase === 'ciclovia' && !v.ramal)
-      .map((v) => [v.nombre, v.puntos.map(aGrados).map(([lon, lat]) => [Number(lat.toFixed(5)), Number(lon.toFixed(5))])]);
+      .filter((v) => v.infraestructura.length)
+      .flatMap((v) => [...new Set(v.infraestructura.map((b) => b.tipo))].map((tipo) => [v.nombre, v.puntos.map(aGrados).map(([lon, lat]) => [Number(lat.toFixed(5)), Number(lon.toFixed(5))]), tipo]));
     return { ciclovias };
   },
 

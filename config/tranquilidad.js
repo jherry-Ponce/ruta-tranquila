@@ -10,6 +10,8 @@ export default {
     secundaria: 0.35, // secondary: Av. Arequipa, Av. Sucre, Av. Juan de Aliaga
     primaria: 0.1, // primary: Av. Brasil, Av. Benavides, Av. La Marina
     autopista: 0.0, // motorway y trunk: Vía Expresa, Panamericana Sur
+    carrilBici: 0.8, // señalizado sobre la calzada, sin protección física confirmada
+    sendaCompartida: 0.65, // comparte espacio con peatones
     ciclovia: 1.0, // solo en rutas de bicicleta o monopatín
     vereda: 0.3, // veredas, parques o caminos: hay que bajarse y caminar
   },

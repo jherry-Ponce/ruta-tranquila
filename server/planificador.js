@@ -234,7 +234,7 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
 
   for (const ruta of candidatas) {
     ruta.caminataSegundos = (snapInicio?.minutosCaminata ?? 0) * 60;
-    ruta.analisis = analizarRuta(ruta.coordenadas, ruta.waytype, red);
+    ruta.analisis = analizarRuta(ruta.coordenadas, ruta.waytype, red, vehiculo);
     ruta.analisis.giros = analizarGiros(ruta.pasos, ruta.analisis.acumulado, cfg.giros);
     ruta.puntaje = calcularPuntaje(ruta.analisis, null, cfg, vehiculo);
   }

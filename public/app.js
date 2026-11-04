@@ -12,7 +12,9 @@ const NOMBRE_CLASE = {
   secundaria: 'avenidas medianas',
   primaria: 'avenidas grandes',
   autopista: 'vías rápidas',
-  ciclovia: 'ciclovías',
+  ciclovia: 'ciclovías separadas',
+  carrilBici: 'carriles bici señalizados',
+  sendaCompartida: 'sendas compartidas con peatones',
   vereda: 'veredas o parques (a pie)',
   caminata: 'tramo a pie',
 };
@@ -74,6 +76,8 @@ const capaAlertas = L.layerGroup().addTo(mapa);
 const colorCss = (nombre, porDefecto) => getComputedStyle(document.documentElement).getPropertyValue(nombre).trim() || porDefecto;
 const COLOR_TRAMO = {
   ciclovia: '#0e7490',
+  carrilBici: '#2563eb',
+  sendaCompartida: '#9333ea',
   residencial: colorCss('--clase-residencial', '#16a34a'),
   menor: colorCss('--clase-menor', '#84cc16'),
   secundaria: colorCss('--clase-secundaria', '#f59e0b'),
@@ -82,7 +86,9 @@ const COLOR_TRAMO = {
   vereda: colorCss('--clase-noApta', '#6b7280'),
 };
 const NOMBRE_LEYENDA = {
-  ciclovia: 'Ciclovía',
+  ciclovia: 'Ciclovía separada',
+  carrilBici: 'Carril bici señalizado',
+  sendaCompartida: 'Senda compartida',
   residencial: 'Calle tranquila',
   menor: 'Calle con movimiento',
   secundaria: 'Avenida mediana',
@@ -105,8 +111,8 @@ botonCompleto.type = 'button';
 const botonCiclovias = document.createElement('button');
 botonCiclovias.type = 'button';
 botonCiclovias.innerHTML = ICONO_BICI;
-botonCiclovias.title = 'Ver todas las ciclovías';
-botonCiclovias.setAttribute('aria-label', 'Ver todas las ciclovías de Lima');
+botonCiclovias.title = 'Ver infraestructura ciclista';
+botonCiclovias.setAttribute('aria-label', 'Ver infraestructura ciclista registrada en Lima');
 botonCiclovias.setAttribute('aria-pressed', 'false');
 
 const controles = L.control({ position: 'topright' });
@@ -160,9 +166,16 @@ async function alternarCiclovias(mostrar = !mostrandoCiclovias) {
     try {
       const { ciclovias } = await api('/api/ciclovias', {});
       const lienzo = L.canvas({ pane: 'ciclovias' });
-      for (const [nombre, puntos] of ciclovias) {
-        L.polyline(puntos, { renderer: lienzo, pane: 'ciclovias', color: COLOR_TRAMO.ciclovia, weight: 3, opacity: 0.6, dashArray: '6 5' })
-          .bindTooltip(nombre || 'Ciclovía', { sticky: true })
+      for (const [nombre, puntos, tipo = 'separada'] of ciclovias) {
+        const estilos = {
+          separada: { color: '#0e7490', dashArray: null, titulo: 'Ciclovía separada' },
+          carril: { color: '#2563eb', dashArray: '7 4', titulo: 'Carril bici señalizado' },
+          compartida: { color: '#b45309', dashArray: '2 6', titulo: 'Vía compartida con vehículos' },
+          sendaCompartida: { color: '#9333ea', dashArray: '3 5', titulo: 'Senda compartida con peatones' },
+        };
+        const estilo = estilos[tipo] ?? estilos.compartida;
+        L.polyline(puntos, { renderer: lienzo, pane: 'ciclovias', color: estilo.color, weight: 3, opacity: 0.75, dashArray: estilo.dashArray })
+          .bindTooltip((nombre ? nombre + ' · ' : '') + estilo.titulo + ' (OSM)', { sticky: true })
           .addTo(capaCiclovias);
       }
       cicloviasCargadas = true;
@@ -193,7 +206,11 @@ function actualizarLeyenda() {
   const items = Object.keys(NOMBRE_LEYENDA)
     .filter((c) => clasesRuta.includes(c))
     .map((c) => el('span', { class: 'leyenda-item' }, el('i', { class: c === 'vereda' ? 'a-pie' : '', style: `background:${COLOR_TRAMO[c]}` }), NOMBRE_LEYENDA[c]));
-  if (mostrandoCiclovias) items.push(el('span', { class: 'leyenda-item' }, el('i', { class: 'otras' }), 'Otras ciclovías'));
+  if (mostrandoCiclovias) {
+    for (const [color, nombre] of [['#0e7490', 'Ciclovía separada'], ['#2563eb', 'Carril bici'], ['#b45309', 'Compartida con vehículos'], ['#9333ea', 'Compartida con peatones']]) {
+      items.push(el('span', { class: 'leyenda-item' }, el('i', { style: 'background:' + color }), nombre));
+    }
+  }
   if (!items.length) {
     if (leyendaVisible) leyenda.remove();
     leyendaVisible = false;
@@ -704,7 +721,7 @@ function sugerir(cual) {
                   },
                 },
                 el('strong', {}, l.nombre),
-                el('span', {}, l.zona || l.etiqueta),
+                el('span', {}, [l.direccion, l.zona].filter(Boolean).join(' · ') || l.etiqueta),
               ),
             ),
           ),

@@ -1,0 +1,133 @@
+{
+  "generado": "2026-11-04T04:10:27.730Z",
+  "datosOsm": "2026-11-04T02:23:16Z",
+  "datosInfraBici": "2026-07-28T02:16:18Z",
+  "revisionCorredor": "referencias/osm-corredor-magdalena.json.gz",
+  "alcance": "Etiquetas OSM en Lima y Callao. El conteo es de objetos, no de kilómetros ni de ciclovías completas.",
+  "limite": "La auditoría de nombres no acredita continuidad, acceso ni estado físico de las conexiones.",
+  "conteoPorTipo": {
+    "separada": 1357,
+    "carril": 246,
+    "sendaCompartida": 298,
+    "compartida": 87
+  },
+  "corredor": [
+    {
+      "idOsm": 284892467,
+      "nombre": "Jirón Miguel Grau",
+      "claseCalzada": "menor",
+      "infraestructura": [
+        {
+          "tipo": "separada",
+          "lado": "left",
+          "sentido": 1
+        }
+      ],
+      "enlaceOsm": "https://www.openstreetmap.org/way/284892467"
+    },
+    {
+      "idOsm": 314735743,
+      "nombre": "Jirón Miguel Grau",
+      "claseCalzada": "menor",
+      "infraestructura": [
+        {
+          "tipo": "separada",
+          "lado": "left",
+          "sentido": 1
+        }
+      ],
+      "enlaceOsm": "https://www.openstreetmap.org/way/314735743"
+    },
+    {
+      "idOsm": 321508051,
+      "nombre": "Jirón Miguel Grau",
+      "claseCalzada": "menor",
+      "infraestructura": [
+        {
+          "tipo": "separada",
+          "lado": "left",
+          "sentido": 1
+        }
+      ],
+      "enlaceOsm": "https://www.openstreetmap.org/way/321508051"
+    },
+    {
+      "idOsm": 337309173,
+      "nombre": "Jirón Miguel Grau",
+      "claseCalzada": "menor",
+      "infraestructura": [
+        {
+          "tipo": "separada",
+          "lado": "left",
+          "sentido": 1
+        }
+      ],
+      "enlaceOsm": "https://www.openstreetmap.org/way/337309173"
+    },
+    {
+      "idOsm": 338908860,
+      "nombre": "Jirón Miguel Grau",
+      "claseCalzada": "menor",
+      "infraestructura": [
+        {
+          "tipo": "separada",
+          "lado": "left",
+          "sentido": 1
+        }
+      ],
+      "enlaceOsm": "https://www.openstreetmap.org/way/338908860"
+    },
+    {
+      "idOsm": 24306502,
+      "nombre": "Avenida Parque Gonzales Prada",
+      "claseCalzada": "residencial",
+      "infraestructura": [
+        {
+          "tipo": "separada",
+          "lado": "left",
+          "sentido": 1
+        }
+      ],
+      "enlaceOsm": "https://www.openstreetmap.org/way/24306502"
+    },
+    {
+      "idOsm": 24306573,
+      "nombre": "Jirón Inclan",
+      "claseCalzada": "residencial",
+      "infraestructura": [
+        {
+          "tipo": "separada",
+          "lado": "left",
+          "sentido": 1
+        }
+      ],
+      "enlaceOsm": "https://www.openstreetmap.org/way/24306573"
+    },
+    {
+      "idOsm": 24306643,
+      "nombre": "Avenida Parque Gonzales Prada",
+      "claseCalzada": "residencial",
+      "infraestructura": [
+        {
+          "tipo": "separada",
+          "lado": "left",
+          "sentido": 1
+        }
+      ],
+      "enlaceOsm": "https://www.openstreetmap.org/way/24306643"
+    },
+    {
+      "idOsm": 1545289827,
+      "nombre": "Jirón Miguel Grau",
+      "claseCalzada": "menor",
+      "infraestructura": [
+        {
+          "tipo": "separada",
+          "lado": "left",
+          "sentido": 1
+        }
+      ],
+      "enlaceOsm": "https://www.openstreetmap.org/way/1545289827"
+    }
+  ]
+}

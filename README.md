@@ -265,3 +265,17 @@ En `/api/rutas`, `salida` es opcional y usa el formato `"2026-11-03T18:30"` en h
 - Rutas y búsqueda de direcciones: [openrouteservice](https://openrouteservice.org) (HeiGIT).
 - Tráfico: [TomTom](https://developer.tomtom.com).
 - Mapa: [Leaflet](https://leafletjs.com).
+
+## Cobertura ciclista y auditoría
+
+El mapa distingue ciclovías separadas, carriles señalizados, vías compartidas con vehículos y sendas compartidas con peatones. Incluye las etiquetas ciclistas sobre calles, además de geometrías independientes. Los carriles sobre calles se dibujan en el eje de la calle; no siempre se conoce su ubicación lateral exacta.
+
+La evaluación en bici respeta el sentido registrado y no da el bono de ciclovía protegida a carriles pintados ni a vías compartidas. Auto y moto conservan la clasificación de la calzada. El ajuste del origen a una ciclovía no utiliza carriles dibujados sobre el eje de avenidas.
+
+Ejecuta `npm run revisar:ciclovias` para consultar el conteo y los ids OSM del corredor González Prada–Inclán–Grau. Los originales comprimidos están en `referencias/`. Puedes reprocesarlos sin consumir APIs mediante `npm run datos -- --desde referencias/osm-lima-original.json.gz`.
+
+La réplica global disponible tiene base de julio de 2026; se conservaron las avenidas y semáforos más recientes y se contrastó el corredor con una consulta directa actual de OSM. Las fechas se guardan por separado en los datos: descargar hoy no significa que la réplica esté actualizada hoy. La cobertura depende de lo registrado en OSM.
+
+## Buscar lugares por nombre
+
+En Desde y Hasta puedes escribir nombres como Plaza San Miguel u Hospital Rebagliati, además de calles con número y enlaces de Google Maps. Las sugerencias muestran el nombre del lugar, su dirección y distrito. Si hay varias sedes, elige la correspondiente. La disponibilidad depende del catálogo del proveedor y un punto de establecimiento no garantiza la puerta de acceso exacta.
