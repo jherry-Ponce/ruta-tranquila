@@ -90,6 +90,10 @@ aprendiendo a manejar (auto, moto eléctrica) o va en bici/monopatín. Producci�
 - Límite: el plan gratuito de ORS admite ~40 rutas por minuto; cada búsqueda usa 3-4 y cada práctica 4.
 - Errores en producción: `window.onerror` → `/api/errores` → `console.error('[error-interfaz]')` (Vercel → Logs; en Hobby se guardan poco tiempo). Sin ubicaciones.
 
+- Tiempos (`ajustarDuracion` en `server/planificador.js`): auto = ORS `driving-car`; moto eléctrica = mismo perfil pero ningún paso a más de 40,5 km/h (90 % de 45); bici o monopatín = ORS `cycling-regular` (~18 km/h medido) × 18/15. Decisión del usuario: no agregar selectores de velocidad para no recargar la pantalla.
+- Ritmo personal: al llegar sin recálculo ni pausas >2 min (viaje >1 km), `viaje.js` envía tiempo real vs. estimado; `app.js` guarda la relación con el cálculo base (últimas 5 por vehículo, descarta <0,4 o >3) y desde 2 viajes manda `ajusteRitmo` (mediana, 0,7–2) a `/api/rutas` y `/api/practica`. Con tráfico TomTom se multiplica; la moto eléctrica nunca baja de su propio tope.
+- Mapa: la red ciclista es fondo (colores apagados, 2 px, una línea en la leyenda) y la ruta elegida lleva borde oscuro (#1f2937). La red se oculta durante el viaje o ensayo y vuelve al terminar.
+
 ## Versión 2 (pendiente, en una rama aparte; no empezar sin acuerdo)
 
 - Pasar los mapas de los tiles de OpenStreetMap (su política no admite uso intensivo) a un proveedor con plan gratuito antes de lanzar.

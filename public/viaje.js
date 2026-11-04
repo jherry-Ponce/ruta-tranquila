@@ -100,9 +100,9 @@ export function enlaceSeguirEnGoogle(geometria, acumulado, recorrido, modo = 'dr
 }
 
 // Opciones: alRecalcular(pos) recálculo manual; alDesviarse(pos) → Promise<ruta> recálculo automático;
-// alOpinar(opinion) guarda la opinión del viaje; alTerminar() al cerrar; destino: nombre para los mensajes;
+// alOpinar(opinion) guarda la opinión del viaje; alLlegar(medicion) recibe el tiempo real para aprender el ritmo; alTerminar() al cerrar; destino: nombre para los mensajes;
 // practica: { nivel } si es un circuito de práctica.
-export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTerminar, alDesviarse, alOpinar, destino = '', practica = null }) {
+export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTerminar, alDesviarse, alOpinar, alLlegar, destino = '', practica = null }) {
   // La ruta se puede reemplazar a mitad de camino (recálculo automático) sin cortar la guía.
   let ruta, P, acumulado, total, pasos, criticos;
   let recorrido = 0;
@@ -126,6 +126,12 @@ export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTe
   let repetirSiguiente = false;
   let fraseRetomar = 'Retomando la guía.';
   let recalculando = false;
+  // Para aprender el ritmo real: solo viajes completos, sin recálculo ni pausas largas del GPS.
+  let inicioMovimiento = null;
+  let recorridoInicio = 0;
+  let ultimaUbicacion = null;
+  let huboPausa = false;
+  let rutaCambiada = false;
   const marcador = L.circleMarker(rutaInicial.geometria[0], { radius: 9, color: '#fff', weight: 3, fillColor: '#2563eb', fillOpacity: 1 }).addTo(mapa);
 
   const caja = document.getElementById('viaje');
@@ -181,6 +187,9 @@ export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTe
   function actualizar(lat, lon) {
     if (terminado) return;
     posicionActual = { lat, lon };
+    const ahora = Date.now();
+    if (ultimaUbicacion && ahora - ultimaUbicacion > 120_000) huboPausa = true; // p. ej. pantalla apagada en la web
+    ultimaUbicacion = ahora;
     marcador.setLatLng([lat, lon]);
     mapa.panTo([lat, lon], { animate: true });
     const { d, s } = proyectarEnRuta(P, acumulado, aXY([lat, lon]), recorrido, buscarEnTodo);
@@ -203,6 +212,10 @@ export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTe
     fueraDesde = null;
     botonRecalcular.hidden = true;
     recorrido = Math.max(recorrido, s);
+    if (!inicioMovimiento && recorrido > 30) {
+      inicioMovimiento = ahora;
+      recorridoInicio = recorrido;
+    }
 
     if (total - recorrido < 25) return llegar();
 
@@ -259,6 +272,7 @@ export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTe
       if (terminado) return;
       if (!nueva) throw new Error('Sin ruta nueva');
       cargarRuta(nueva);
+      rutaCambiada = true;
       fueraDesde = null;
       botonRecalcular.hidden = true;
       buscarEnTodo = true;
@@ -274,7 +288,20 @@ export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTe
     }
   }
 
+  // Compara el tiempo real con el estimado para que la app aprenda tu ritmo.
+  function medirRitmo() {
+    if (ensayo || rutaCambiada || huboPausa || !inicioMovimiento || !alLlegar || total < 1000) return;
+    const segundosEstimados = (ruta.duracionSegundos ?? 0) * ((total - recorridoInicio) / total);
+    if (segundosEstimados < 120) return;
+    try {
+      alLlegar({ segundosReales: (Date.now() - inicioMovimiento) / 1000, segundosEstimados, ajusteAplicado: ruta.ajusteRitmo ?? 1 });
+    } catch (error) {
+      console.warn('Al medir el ritmo:', error);
+    }
+  }
+
   function llegar() {
+    medirRitmo();
     hablar(practica ? '¡Terminaste la práctica! Bien hecho.' : 'Llegaste a tu destino.', true);
     detenerSeguimiento(false);
     if (ensayo || !alOpinar) {

@@ -182,6 +182,7 @@ document.addEventListener('keydown', (ev) => {
 
 // Red de ciclovías de Lima: se descarga una sola vez, al activarla.
 let mostrandoCiclovias = false;
+let redOcultaEnViaje = false; // durante el viaje solo se ve el camino
 let cicloviasCargadas = false;
 async function alternarCiclovias(mostrar = !mostrandoCiclovias) {
   mostrandoCiclovias = mostrar;
@@ -197,14 +198,16 @@ async function alternarCiclovias(mostrar = !mostrandoCiclovias) {
       const { ciclovias } = await api('/api/ciclovias', {});
       const lienzo = L.canvas({ pane: 'ciclovias' });
       for (const [nombre, puntos, tipo = 'separada'] of ciclovias) {
+        // Red de fondo: colores apagados y línea fina, para que la ruta elegida siempre se distinga.
+        // El tipo se ve al tocar o pasar sobre la línea.
         const estilos = {
-          separada: { color: '#0e7490', dashArray: null, titulo: 'Ciclovía separada' },
-          carril: { color: '#2563eb', dashArray: '7 4', titulo: 'Carril bici señalizado' },
-          compartida: { color: '#b45309', dashArray: '2 6', titulo: 'Vía compartida con vehículos' },
-          sendaCompartida: { color: '#9333ea', dashArray: '3 5', titulo: 'Senda compartida con peatones' },
+          separada: { color: '#6f9ea6', dashArray: null, titulo: 'Ciclovía separada' },
+          carril: { color: '#8a9cc4', dashArray: '7 4', titulo: 'Carril bici señalizado' },
+          compartida: { color: '#b9a084', dashArray: '2 6', titulo: 'Vía compartida con vehículos' },
+          sendaCompartida: { color: '#a996bd', dashArray: '3 5', titulo: 'Senda compartida con peatones' },
         };
         const estilo = estilos[tipo] ?? estilos.compartida;
-        L.polyline(puntos, { renderer: lienzo, pane: 'ciclovias', color: estilo.color, weight: 3, opacity: 0.75, dashArray: estilo.dashArray })
+        L.polyline(puntos, { renderer: lienzo, pane: 'ciclovias', color: estilo.color, weight: 2, opacity: 0.6, dashArray: estilo.dashArray })
           .bindTooltip((nombre ? nombre + ' · ' : '') + estilo.titulo + ' (OSM)', { sticky: true })
           .addTo(capaCiclovias);
       }
@@ -217,7 +220,7 @@ async function alternarCiclovias(mostrar = !mostrandoCiclovias) {
       botonCiclovias.classList.remove('cargando');
     }
   }
-  if (mostrandoCiclovias) capaCiclovias.addTo(mapa);
+  if (mostrandoCiclovias && !redOcultaEnViaje) capaCiclovias.addTo(mapa);
   else capaCiclovias.remove();
   actualizarLeyenda();
 }
@@ -236,11 +239,7 @@ function actualizarLeyenda() {
   const items = Object.keys(NOMBRE_LEYENDA)
     .filter((c) => clasesRuta.includes(c))
     .map((c) => el('span', { class: 'leyenda-item' }, el('i', { class: c === 'vereda' ? 'a-pie' : '', style: `background:${COLOR_TRAMO[c]}` }), NOMBRE_LEYENDA[c]));
-  if (mostrandoCiclovias) {
-    for (const [color, nombre] of [['#0e7490', 'Ciclovía separada'], ['#2563eb', 'Carril bici'], ['#b45309', 'Compartida con vehículos'], ['#9333ea', 'Compartida con peatones']]) {
-      items.push(el('span', { class: 'leyenda-item' }, el('i', { style: 'background:' + color }), nombre));
-    }
-  }
+  if (mostrandoCiclovias && !redOcultaEnViaje) items.push(el('span', { class: 'leyenda-item' }, el('i', { class: 'otras' }), 'Red ciclista (fondo)'));
   if (!items.length) {
     if (leyendaVisible) leyenda.remove();
     leyendaVisible = false;
@@ -480,7 +479,8 @@ function seleccionar(i, ajustar = false) {
   seleccionada = i;
   const porTramos = Boolean(rutas[i].tramosPorClase?.length);
   lineas.forEach((linea, k) => {
-    linea.setStyle(k === i && porTramos ? { color: '#ffffff', weight: 11, opacity: 0.95, dashArray: null } : estiloLinea(rutas[k], k === i));
+    // Borde oscuro bajo la ruta elegida: se distingue sobre el mapa y sobre la red de ciclovías.
+    linea.setStyle(k === i && porTramos ? { color: '#1f2937', weight: 11, opacity: 0.85, dashArray: null } : estiloLinea(rutas[k], k === i));
     if (k === i) linea.bringToFront();
   });
   dibujarTramos(rutas[i]);
@@ -583,6 +583,7 @@ function tarjeta(ruta, i) {
         ),
         ruta.caminataInicial && el('p', { class: 'ruta-datos' }, `Total aprox.: ${ruta.caminataInicial.minutos} min caminando + ${formatoTiempo(ruta.duracionSegundos)} en bici. Caminata estimada en línea recta.`),
         extra > 0 && el('p', { class: 'ruta-datos' }, `${extra} min más que la más rápida`),
+        lineaRitmo(ruta),
         lineaBateria(ruta),
       ),
       el(
@@ -643,6 +644,9 @@ function empezarViaje(ev, i, ensayo) {
   // Durante el viaje el mapa ocupa toda la pantalla; al terminar vuelve como estaba.
   const estabaCompleto = mapaCompleto;
   pantallaCompleta(true);
+  redOcultaEnViaje = true;
+  capaCiclovias.remove();
+  actualizarLeyenda();
   mapa.setZoom(17);
   const ruta = rutas[i];
   const practica = ruta.practica ?? null;
@@ -662,6 +666,7 @@ function empezarViaje(ev, i, ensayo) {
         vehiculo: valorDe('vehiculo'),
         nivel: valorDe('nivel'),
         evitar: puntosEvitar(),
+        ajusteRitmo: ritmoPersonal(),
       });
       const nueva = datos.rutas?.[0];
       if (!nueva) return null;
@@ -672,7 +677,11 @@ function empezarViaje(ev, i, ensayo) {
     alOpinar: (opinion) => guardarOpinion(opinion),
     alTerminar: () => {
       if (!estabaCompleto) pantallaCompleta(false);
+      redOcultaEnViaje = false;
+      if (mostrandoCiclovias) capaCiclovias.addTo(mapa);
+      actualizarLeyenda();
     },
+    alLlegar: (medicion) => registrarRitmo(medicion),
     alRecalcular: (pos) => {
       if (!pos) return;
       $('origen').value = 'Tu ubicación';
@@ -721,6 +730,7 @@ $('formulario').addEventListener('submit', async (ev) => {
       vehiculo: valorDe('vehiculo'),
       nivel: valorDe('nivel'),
       evitar: puntosEvitar(),
+      ajusteRitmo: ritmoPersonal(),
     });
     mostrarResultados(datos);
     if (window.matchMedia('(max-width: 899px)').matches) $('resultados').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -875,6 +885,36 @@ function repintarTarjetas() {
   $('ida-vuelta').addEventListener('change', alCambiar);
   document.querySelectorAll('input[name="vehiculo"]').forEach((r) => r.addEventListener('change', actualizarCampoBateria));
   actualizarCampoBateria();
+}
+
+// ----- Ritmo personal (se aprende solo, sin preguntar nada) -----
+// Tras cada viaje completo se compara el tiempo real con el estimado. Desde 2 viajes con el mismo vehículo,
+// los tiempos se ajustan con la mediana de los últimos 5 (entre 0,7 y 2 veces el cálculo).
+
+function ritmoPersonal(vehiculo = valorDe('vehiculo')) {
+  const medidas = leer('ritmo', {})[vehiculo] ?? [];
+  if (medidas.length < 2) return 1;
+  const orden = [...medidas].sort((a, b) => a - b);
+  const mitad = Math.floor(orden.length / 2);
+  const mediana = orden.length % 2 ? orden[mitad] : (orden[mitad - 1] + orden[mitad]) / 2;
+  return Math.round(Math.min(2, Math.max(0.7, mediana)) * 100) / 100;
+}
+
+function registrarRitmo({ segundosReales, segundosEstimados, ajusteAplicado = 1 }) {
+  // Se guarda la relación con el cálculo base (sin el ajuste que ya se había aplicado).
+  const relacion = segundosReales / (segundosEstimados / ajusteAplicado);
+  if (!Number.isFinite(relacion) || relacion < 0.4 || relacion > 3) return; // viaje atípico (paradas largas, etc.)
+  const vehiculo = valorDe('vehiculo');
+  const ritmo = leer('ritmo', {});
+  ritmo[vehiculo] = [...(ritmo[vehiculo] ?? []), Math.round(relacion * 100) / 100].slice(-5);
+  guardar('ritmo', ritmo);
+}
+
+function lineaRitmo(ruta) {
+  const ajuste = ruta.ajusteRitmo ?? 1;
+  if (Math.abs(ajuste - 1) < 0.05) return null;
+  const porcentaje = Math.round((ajuste - 1) * 100);
+  return el('p', { class: 'ruta-datos' }, `⏱ Tiempo ajustado a tu ritmo real (${porcentaje > 0 ? '+' : ''}${porcentaje} %).`);
 }
 
 // ----- Opiniones y puntos a evitar (solo en este equipo) -----
@@ -1061,6 +1101,7 @@ $('practica-armar').addEventListener('click', async () => {
       vehiculo: valorDe('vehiculo'),
       semilla: leer('semillaPractica', 1),
       evitar: puntosEvitar(),
+      ajusteRitmo: ritmoPersonal(),
     });
     guardar('semillaPractica', datos.siguienteSemilla); // la próxima vez, otro circuito
     datos.ruta.practica = { nivel: datos.nivel };

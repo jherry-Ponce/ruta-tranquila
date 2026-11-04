@@ -203,6 +203,8 @@ function formatearRuta(r, { tipos, vehiculo, snapInicio = null, duracionTotal = 
     distanciaMetros: Math.round(r.distancia),
     duracionSegundos: Math.round(r.duracion),
     duracionTotalSegundos: Math.round(duracionTotal),
+    // Ritmo personal aplicado (1 = sin ajuste), para mostrarlo y para aprender de los viajes reales.
+    ajusteRitmo: r.ajusteRitmo ?? 1,
     subidaMetros: Math.round(r.subida ?? 0),
     bajadaMetros: Math.round(r.bajada ?? 0),
     trafico: r.trafico
@@ -229,7 +231,31 @@ function formatearRuta(r, { tipos, vehiculo, snapInicio = null, duracionTotal = 
   };
 }
 
-export async function planificar({ origen, destino, salida, depurar, vehiculo = 'auto', nivel = 'principiante', evitar = [] }, { red, cfg }) {
+// ----- Tiempos realistas por vehículo -----
+// OpenRouteService no conoce las motos eléctricas (se calculan como auto) y su perfil de bici supone unos
+// 18 km/h. Para quien está aprendiendo se usan valores más prudentes, sin pedir nada en pantalla:
+// - moto eléctrica: ningún paso de la ruta a más de ~40 km/h (90% de un tope típico de 45 km/h);
+// - bici o monopatín: unos 15 km/h en lugar de 18.
+// Encima se aplica el ritmo personal que la app aprende de los viajes reales (ajusteRitmo, 0,7 a 2).
+const VELOCIDAD_MAX_MOTO_ELECTRICA = 45; // km/h
+const VELOCIDAD_ORS_BICI = 18; // km/h: promedio medido del perfil cycling-regular en Lima
+const VELOCIDAD_BICI = 15; // km/h
+
+export function ajustarDuracion(r, vehiculo, ajusteRitmo = 1) {
+  let duracion = r.duracion;
+  if (vehiculo === 'bici') duracion *= VELOCIDAD_ORS_BICI / VELOCIDAD_BICI;
+  if (vehiculo === 'motoElectrica') {
+    const tope = (VELOCIDAD_MAX_MOTO_ELECTRICA * 0.9) / 3.6; // m/s
+    const orsPasos = r.pasos.reduce((s, p) => s + (p.duration ?? 0), 0);
+    const conTope = r.pasos.reduce((s, p) => s + Math.max(p.duration ?? 0, (p.distance ?? 0) / tope), 0);
+    if (orsPasos > 0) duracion *= conTope / orsPasos;
+  }
+  r.duracionOrs = r.duracion;
+  r.ajusteRitmo = ajusteRitmo;
+  r.duracion = duracion * ajusteRitmo;
+}
+
+export async function planificar({ origen, destino, salida, depurar, vehiculo = 'auto', nivel = 'principiante', evitar = [], ajusteRitmo = 1 }, { red, cfg }) {
   // Puntos que la persona marcó como difíciles en viajes anteriores: las rutas tranquilas los esquivan.
   const zonasExtra = zonasDePuntos(evitar, [origen, destino]);
   // En modo bici, si la salida está sobre una avenida, se ajusta el origen a una ciclovía cercana. No se ajusta el destino:
@@ -288,6 +314,7 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
   if (!candidatas.length) throw new ErrorServicio('No encontré una ruta que evite las avenidas entre esos puntos.', 422);
 
   for (const ruta of candidatas) {
+    ajustarDuracion(ruta, vehiculo, ajusteRitmo);
     ruta.caminataSegundos = (snapInicio?.minutosCaminata ?? 0) * 60;
     ruta.analisis = analizarRuta(ruta.coordenadas, ruta.waytype, red, vehiculo);
     ruta.analisis.giros = analizarGiros(ruta.pasos, ruta.analisis.acumulado, cfg.giros);
@@ -295,7 +322,13 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
   }
 
   const caminataSegundos = (snapInicio?.minutosCaminata ?? 0) * 60;
-  const tiempoTotal = (r) => (r.trafico?.confiable ? r.trafico.duracionSegundos : r.duracion) + caminataSegundos;
+  // Con tráfico medido por TomTom (calculado para autos) se aplica el ritmo personal; la moto eléctrica
+  // nunca va más rápido que su propio tope.
+  const tiempoTotal = (r) => {
+    if (!r.trafico?.confiable) return r.duracion + caminataSegundos;
+    const conTrafico = r.trafico.duracionSegundos * ajusteRitmo;
+    return (vehiculo === 'motoElectrica' ? Math.max(conTrafico, r.duracion) : conTrafico) + caminataSegundos;
+  };
   const masRapida = candidatas.reduce((m, r) => (r.duracion < m.duracion ? r : m));
   const tope = cfg.tiempoMaximo[nivel];
   const limite = tiempoTotal(masRapida) * tope.factor + tope.minutosExtra * 60;
@@ -414,7 +447,7 @@ export const NIVELES_PRACTICA = {
 const METROS_POR_MINUTO = { auto: 220, motoElectrica: 220, bici: 160 };
 const CIRCUITOS_POR_NIVEL = 4; // el plan gratuito de ORS admite ~40 rutas por minuto
 
-export async function practicar({ origen, minutos = 20, nivel = 1, vehiculo = 'auto', semilla = 1, evitar = [] }, { red, cfg }) {
+export async function practicar({ origen, minutos = 20, nivel = 1, vehiculo = 'auto', semilla = 1, evitar = [], ajusteRitmo = 1 }, { red, cfg }) {
   const datosNivel = NIVELES_PRACTICA[nivel] ?? NIVELES_PRACTICA[1];
   const perfil = vehiculo === 'bici' ? 'cycling-regular' : 'driving-car';
   const largo = Math.round(Math.min(12_000, Math.max(2_000, minutos * METROS_POR_MINUTO[vehiculo])));
@@ -447,6 +480,7 @@ export async function practicar({ origen, minutos = 20, nivel = 1, vehiculo = 'a
   if (!candidatas.length) throw new ErrorServicio('No pude armar un circuito de práctica desde ese punto. Prueba desde otra calle.', 422);
 
   for (const r of candidatas) {
+    ajustarDuracion(r, vehiculo, ajusteRitmo);
     r.analisis = analizarRuta(r.coordenadas, r.waytype, red, vehiculo);
     r.analisis.giros = analizarGiros(r.pasos, r.analisis.acumulado, cfg.giros);
     r.puntaje = calcularPuntaje(r.analisis, null, cfg, vehiculo);

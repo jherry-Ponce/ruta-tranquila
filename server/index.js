@@ -71,6 +71,12 @@ function puntosEvitar(lista) {
     .filter(({ lat, lon }) => lat >= sur && lat <= norte && lon >= oeste && lon <= este);
 }
 
+// Ritmo personal aprendido en el equipo de la persona: se acepta entre 0,7 y 2 (si no, 1).
+function ajusteRitmo(valor) {
+  const n = Number(valor);
+  return Number.isFinite(n) && n >= 0.7 && n <= 2 ? n : 1;
+}
+
 async function leerJson(req) {
   // Vercel ya entrega el cuerpo leído.
   if (req.body !== undefined) return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body;
@@ -165,7 +171,7 @@ const API = {
     const vehiculo = ['auto', 'motoElectrica', 'bici'].includes(cuerpo.vehiculo) ? cuerpo.vehiculo : 'auto';
     const nivel = ['principiante', 'intermedio', 'normal'].includes(cuerpo.nivel) ? cuerpo.nivel : 'principiante';
     const evitar = puntosEvitar(cuerpo.evitar);
-    return planificar({ origen, destino, salida, vehiculo, nivel, evitar, depurar: Boolean(cuerpo.depurar) }, { red, cfg });
+    return planificar({ origen, destino, salida, vehiculo, nivel, evitar, ajusteRitmo: ajusteRitmo(cuerpo.ajusteRitmo), depurar: Boolean(cuerpo.depurar) }, { red, cfg });
   },
 
   // Circuito de práctica que sale y vuelve al mismo punto.
@@ -177,7 +183,7 @@ const API = {
     const minutos = [10, 20, 30].includes(Number(cuerpo.minutos)) ? Number(cuerpo.minutos) : 20;
     const nivel = [1, 2, 3, 4].includes(Number(cuerpo.nivel)) ? Number(cuerpo.nivel) : 1;
     const semilla = Math.max(1, Math.min(10_000, Math.floor(Number(cuerpo.semilla)) || 1));
-    return practicar({ origen, minutos, nivel, vehiculo, semilla, evitar: puntosEvitar(cuerpo.evitar) }, { red, cfg });
+    return practicar({ origen, minutos, nivel, vehiculo, semilla, evitar: puntosEvitar(cuerpo.evitar), ajusteRitmo: ajusteRitmo(cuerpo.ajusteRitmo) }, { red, cfg });
   },
 };
 
