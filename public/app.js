@@ -136,8 +136,17 @@ const ICONO_REDUCIR =
 const ICONO_BICI =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="16" r="3.5"/><circle cx="18" cy="16" r="3.5"/><path d="M6 16l4-7h5l3 7M10 9l3 7h-7M14 6h2.5"/></g></svg>';
 
+const ICONO_EVITAR =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M6.5 17.5l11-11"/></g></svg>';
+
 const botonCompleto = document.createElement('button');
 botonCompleto.type = 'button';
+const botonEvitar = document.createElement('button');
+botonEvitar.type = 'button';
+botonEvitar.innerHTML = ICONO_EVITAR;
+botonEvitar.title = 'Marcar un lugar para evitarlo';
+botonEvitar.setAttribute('aria-label', 'Marcar en el mapa un lugar que quieres evitar');
+botonEvitar.setAttribute('aria-pressed', 'false');
 const botonCiclovias = document.createElement('button');
 botonCiclovias.type = 'button';
 botonCiclovias.innerHTML = ICONO_BICI;
@@ -148,7 +157,7 @@ botonCiclovias.setAttribute('aria-pressed', 'false');
 const controles = L.control({ position: 'topright' });
 controles.onAdd = () => {
   const caja = L.DomUtil.create('div', 'leaflet-bar controles-mapa');
-  caja.append(botonCompleto, botonCiclovias);
+  caja.append(botonCompleto, botonCiclovias, botonEvitar);
   L.DomEvent.disableClickPropagation(caja);
   return caja;
 };
@@ -381,6 +390,7 @@ async function asegurarPunto(cual) {
 }
 
 function iniciarModoMapa(cual) {
+  terminarModoEvitar();
   modoMapa = cual;
   document.querySelectorAll('[data-elegir]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.elegir === cual)));
   const pista = $('modo-mapa');
@@ -405,6 +415,11 @@ document.querySelectorAll('[data-elegir]').forEach((boton) =>
 );
 
 mapa.on('click', (e) => {
+  if (modoEvitar) {
+    terminarModoEvitar();
+    elegirMotivo(e.latlng);
+    return;
+  }
   const cual = modoMapa ?? (!puntos.origen ? 'origen' : !puntos.destino ? 'destino' : null);
   if (!cual) return;
   terminarModoMapa();
@@ -682,6 +697,7 @@ function empezarViaje(ev, i, ensayo) {
       actualizarLeyenda();
     },
     alLlegar: (medicion) => registrarRitmo(medicion),
+    alMarcarLugar: () => iniciarModoEvitar(),
     alRecalcular: (pos) => {
       if (!pos) return;
       $('origen').value = 'Tu ubicación';
@@ -1110,10 +1126,7 @@ function guardarOpinion(opinion) {
   guardar('opiniones', opiniones.slice(-200));
 
   // Puntos difíciles: se evitarán en las próximas rutas (sin repetir los que están a menos de 40 m).
-  const evitar = leer('evitar', []);
-  const cerca = (a, b) => Math.hypot((a.lat - b.lat) * 110_574, (a.lon - b.lon) * 108_900) < 40;
-  for (const d of opinion.dificiles) if (!evitar.some((e) => cerca(e, d))) evitar.push(d);
-  guardar('evitar', evitar.slice(-MAX_EVITAR));
+  agregarEvitados(opinion.dificiles);
 
   const mensajes = [];
   if (opinion.dificiles.length) {
@@ -1123,6 +1136,115 @@ function guardarOpinion(opinion) {
   if (mensajes.length) mostrarMensajes(...mensajes.filter(Boolean));
   pintarDatosGuardados();
 }
+
+// ----- Lugares a evitar: difíciles o donde te sentiste inseguro (solo en este equipo) -----
+// No hay datos públicos de delitos por calle en Lima: se usa tu experiencia. Las rutas esquivan unos 80 m
+// alrededor de cada lugar (menos los que están junto a la salida o la llegada).
+
+const capaEvitar = L.layerGroup().addTo(mapa);
+const iconoEvitar = L.divIcon({ className: 'contenedor-evitar', html: '<span class="marca-evitar"></span>', iconSize: [22, 22], iconAnchor: [11, 11] });
+let modoEvitar = false;
+const avisoEvitar = el(
+  'div',
+  { class: 'aviso-mapa', hidden: true },
+  el('span', {}, 'Toca el lugar que quieres evitar'),
+  el('button', { type: 'button', class: 'enlace-boton', onclick: () => terminarModoEvitar() }, 'Cancelar'),
+);
+L.DomEvent.disableClickPropagation(avisoEvitar);
+mapa.getContainer().append(avisoEvitar);
+
+function iniciarModoEvitar() {
+  terminarModoMapa();
+  modoEvitar = true;
+  botonEvitar.setAttribute('aria-pressed', 'true');
+  avisoEvitar.hidden = false;
+  mapa.getContainer().style.cursor = 'crosshair';
+  if (!mapaCompleto) mapa.getContainer().scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function terminarModoEvitar() {
+  if (!modoEvitar) return;
+  modoEvitar = false;
+  botonEvitar.setAttribute('aria-pressed', 'false');
+  avisoEvitar.hidden = true;
+  mapa.getContainer().style.cursor = '';
+}
+
+botonEvitar.addEventListener('click', () => (modoEvitar ? terminarModoEvitar() : iniciarModoEvitar()));
+
+function elegirMotivo(latlng) {
+  const opcion = (motivo, texto) =>
+    el('button', { type: 'button', class: 'boton-motivo', onclick: () => marcarEvitado(latlng, motivo) }, texto);
+  L.popup({ className: 'popup-motivo' })
+    .setLatLng(latlng)
+    .setContent(
+      el(
+        'div',
+        { class: 'elegir-motivo' },
+        el('strong', {}, '¿Por qué quieres evitarlo?'),
+        opcion('inseguro', '😟 Me siento inseguro ahí'),
+        opcion('dificil', '😰 Es difícil manejar ahí'),
+      ),
+    )
+    .openOn(mapa);
+}
+
+const TITULO_MOTIVO = { inseguro: 'Aquí te sentiste inseguro', dificil: 'Lugar difícil' };
+
+// Agrega lugares sin repetir los que están a menos de 40 m de otro ya guardado. Devuelve cuántos agregó.
+function agregarEvitados(nuevos) {
+  const evitar = leer('evitar', []);
+  const cerca = (a, b) => Math.hypot((a.lat - b.lat) * 110_574, (a.lon - b.lon) * 108_900) < 40;
+  let agregados = 0;
+  for (const d of nuevos) {
+    if (evitar.some((e) => cerca(e, d))) continue;
+    evitar.push(d);
+    agregados++;
+  }
+  guardar('evitar', evitar.slice(-MAX_EVITAR));
+  pintarEvitados();
+  return agregados;
+}
+
+function marcarEvitado({ lat, lng }, motivo) {
+  mapa.closePopup();
+  const punto = { lat: Math.round(lat * 1e5) / 1e5, lon: Math.round(lng * 1e5) / 1e5, motivo, titulo: TITULO_MOTIVO[motivo] };
+  const agregado = agregarEvitados([punto]);
+  pintarDatosGuardados();
+  const texto = !agregado
+    ? 'Ese lugar ya estaba marcado.'
+    : rutas.length
+      ? 'Anotado. Vuelve a buscar la ruta para que lo esquive.'
+      : 'Anotado: tus próximas rutas esquivarán ese lugar.';
+  mostrarMensajes(el('p', { class: 'aviso aviso-info' }, texto));
+}
+
+function quitarEvitado(k) {
+  const evitar = leer('evitar', []);
+  evitar.splice(k, 1);
+  guardar('evitar', evitar);
+  mapa.closePopup();
+  pintarEvitados();
+  pintarDatosGuardados();
+}
+
+function pintarEvitados() {
+  capaEvitar.clearLayers();
+  leer('evitar', []).forEach((p, k) =>
+    L.marker([p.lat, p.lon], { icon: iconoEvitar, keyboard: false, title: TITULO_MOTIVO[p.motivo] ?? p.titulo ?? 'Lugar a evitar' })
+      .bindPopup(() =>
+        el(
+          'div',
+          { class: 'popup-evitar' },
+          el('strong', {}, p.motivo === 'inseguro' ? TITULO_MOTIVO.inseguro : (p.titulo ?? TITULO_MOTIVO.dificil)),
+          el('p', {}, 'Tus rutas pasan lejos de aquí, a unos 80 m. Solo se guarda en este equipo.'),
+          el('button', { type: 'button', class: 'enlace-boton', onclick: () => quitarEvitado(k) }, 'Dejar de evitar'),
+        ),
+      )
+      .addTo(capaEvitar),
+  );
+}
+pintarEvitados();
 
 // ----- Favoritos -----
 
@@ -1313,6 +1435,7 @@ function pintarDatosGuardados() {
 $('borrar-datos')?.addEventListener('click', () => {
   if (!window.confirm('¿Borrar tus favoritos, opiniones, puntos a evitar y progreso de práctica de este equipo?')) return;
   borrarTodo();
+  pintarEvitados();
   $('autonomia').value = '';
   document.querySelector('input[name="despues"][value="quedo"]').checked = true;
   quitarSiguiente();

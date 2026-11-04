@@ -82,6 +82,11 @@ aprendiendo a manejar (auto, moto eléctrica) o va en bici/monopatín. Producci�
 - Nombre visible: Voy Tranqui (título, encabezado, manifest). Política en `public/privacidad.html`: si cambia qué datos se usan, actualizarla.
 - Datos del usuario solo en su equipo (`public/almacen.js`, prefijo `voytranqui:`): favoritos, opiniones, puntos a evitar (máx. 20), progreso de práctica, batería. Botón "Borrar mis datos de este equipo".
 - Puntos a evitar: se envían en `/api/rutas` y `/api/practica` como `evitar`; el servidor los convierte en cuadrados de ~80 m (`zonasDePuntos`), omite los que están a menos de 150 m de la salida o llegada y no los guarda.
+- Inseguridad (2026-11-04): no hay datos públicos de delitos por calle en Lima (SIDPOL quedó reservado por la PNP en
+  agosto de 2025; lo publicado es por distrito, en PDF). No usar datos filtrados ni marcar distritos enteros. Se usa la
+  experiencia propia: botón ⊘ del mapa o "¿Te sentiste inseguro…?" en la opinión → punto a evitar con `motivo`
+  (`inseguro` | `dificil`), solo local; al servidor van solo las coordenadas. Medido el mismo día: solo 1,7 % de las
+  calles de Lima (6,7 % en Lima moderna) tiene `lit` en OSM, así que la iluminación no sirve todavía para elegir rutas.
 - Street View: enlace "Ver cómo es" en cada punto crítico (Maps URLs `map_action=pano`, rumbo de la ruta). Solo se abre si se toca.
 - Recálculo automático: si sales de la ruta más de 8 s, `viaje.js` llama `alDesviarse` (una vez cada 45 s) y reemplaza la ruta sin cortar la guía (`cargarRuta`). Si falla, vuelve al aviso de estacionarse.
 - Batería (`public/bateria.js`): ORS con `elevation: true`; 100 m de subida ≈ 1,5 km; margen de 20 %. Es una estimación y la interfaz lo dice.

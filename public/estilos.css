@@ -27,6 +27,11 @@
   background: var(--fondo);
 }
 
+/* Lo oculto queda oculto aunque su clase le dé display: flex o grid. */
+[hidden] {
+  display: none !important;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -1340,4 +1345,84 @@ body.mapa-completo .mapa {
 .lista-criticos .ver-calle {
   grid-column: 2;
   margin-top: -4px;
+}
+
+/* ----- Lugares a evitar (difíciles o inseguros) ----- */
+.contenedor-evitar {
+  background: none;
+  border: 0;
+}
+/* Señal de "prohibido": círculo con una diagonal. Sobria a propósito, para no alarmar ni estigmatizar la zona. */
+.marca-evitar {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border: 2.5px solid #475569;
+  border-radius: 50%;
+  background: linear-gradient(135deg, transparent 44%, #475569 44% 56%, transparent 56%), rgb(255 255 255 / 0.92);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.3);
+}
+.aviso-mapa {
+  position: absolute;
+  z-index: 1000;
+  top: 10px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100% - 130px);
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--texto);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  transform: translateX(-50%);
+  box-shadow: var(--sombra);
+}
+.aviso-mapa[hidden] {
+  display: none;
+}
+.aviso-mapa .enlace-boton {
+  min-height: 32px;
+  color: #b7e4dc;
+  text-decoration: underline;
+}
+.elegir-motivo {
+  display: grid;
+  gap: 6px;
+  min-width: 200px;
+  font: inherit;
+}
+.boton-motivo {
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--borde);
+  border-radius: 10px;
+  background: var(--superficie);
+  color: var(--texto);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.boton-motivo:hover {
+  border-color: var(--primario);
+}
+.popup-evitar p {
+  margin: 4px 0 6px;
+  color: var(--texto-suave);
+}
+.popup-evitar .enlace-boton {
+  color: var(--error);
+  font-weight: 700;
+  text-decoration: underline;
+}
+.viaje .opinion-inseguro {
+  display: block;
+  min-height: 44px;
+  margin: 2px 0 6px;
+  color: #fff;
+  text-align: left;
+  text-decoration: underline;
 }

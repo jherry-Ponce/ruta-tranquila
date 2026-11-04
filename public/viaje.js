@@ -102,7 +102,7 @@ export function enlaceSeguirEnGoogle(geometria, acumulado, recorrido, modo = 'dr
 // Opciones: alRecalcular(pos) recálculo manual; alDesviarse(pos) → Promise<ruta> recálculo automático;
 // alOpinar(opinion) guarda la opinión del viaje; alLlegar(medicion) recibe el tiempo real para aprender el ritmo; alTerminar() al cerrar; destino: nombre para los mensajes;
 // practica: { nivel } si es un circuito de práctica.
-export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTerminar, alDesviarse, alOpinar, alLlegar, destino = '', practica = null }) {
+export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTerminar, alDesviarse, alOpinar, alLlegar, alMarcarLugar, destino = '', practica = null }) {
   // La ruta se puede reemplazar a mitad de camino (recálculo automático) sin cortar la guía.
   let ruta, P, acumulado, total, pasos, criticos;
   let recorrido = 0;
@@ -350,7 +350,7 @@ export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTe
           ),
         )
       : null;
-    const listo = () => {
+    const listo = (luego) => {
       if (valoracion || elegidos.size) {
         try {
           alOpinar({
@@ -358,14 +358,23 @@ export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTe
             llego,
             practica: practica ? practica.nivel : null,
             metros: Math.round(recorrido),
-            dificiles: [...elegidos].map((k) => ({ lat: pasados[k].lat, lon: pasados[k].lon, titulo: pasados[k].titulo })),
+            dificiles: [...elegidos].map((k) => ({ lat: pasados[k].lat, lon: pasados[k].lon, titulo: pasados[k].titulo, motivo: 'dificil' })),
           });
         } catch (error) {
           console.warn('Al guardar la opinión:', error);
         }
       }
       cerrar();
+      try {
+        luego?.();
+      } catch (error) {
+        console.warn('Al marcar un lugar:', error);
+      }
     };
+    // Un lugar inseguro no tiene por qué ser un cruce: se marca tocando el mapa, ya con el viaje cerrado.
+    const marcarInseguro =
+      alMarcarLugar &&
+      el('button', { type: 'button', class: 'enlace-boton opinion-inseguro', onclick: () => listo(alMarcarLugar) }, '¿Te sentiste inseguro en alguna parte? Márcala en el mapa');
     const avisarLlegue = el(
       'a',
       { class: 'boton-secundario boton-avisar', target: '_blank', rel: 'noopener noreferrer', href: enlaceWhatsApp(mensajeLlegue(destino)) },
@@ -377,7 +386,8 @@ export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTe
       el('div', { class: 'opinion-valores' }, botones),
       lista && el('p', { class: 'viaje-detalle' }, '¿Algún punto fue difícil? Márcalo y lo evitaré la próxima vez:'),
       lista,
-      el('div', { class: 'viaje-botones' }, llego && !practica && avisarLlegue, el('button', { type: 'button', class: 'boton-principal', onclick: listo }, 'Listo')),
+      marcarInseguro,
+      el('div', { class: 'viaje-botones' }, llego && !practica && avisarLlegue, el('button', { type: 'button', class: 'boton-principal', onclick: () => listo() }, 'Listo')),
     );
     caja.classList.add('viaje-opinion');
   }
