@@ -1,0 +1,12 @@
+{
+  "appId": "pe.voytranqui.app",
+  "appName": "Voy Tranqui",
+  "webDir": "www",
+  "server": {
+    "url": "https://ruta-tranquila.vercel.app",
+    "errorPath": "sin-conexion.html"
+  },
+  "android": {
+    "useLegacyBridge": true
+  }
+}

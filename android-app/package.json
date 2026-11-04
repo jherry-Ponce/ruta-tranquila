@@ -1,0 +1,18 @@
+{
+  "name": "voy-tranqui-android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "App Android de Voy Tranqui: carga la web publicada y agrega GPS y voz nativos para guiar con la pantalla apagada.",
+  "scripts": {
+    "sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor-community/background-geolocation": "1.2.26",
+    "@capacitor-community/text-to-speech": "6.1.0",
+    "@capacitor/android": "7.6.9",
+    "@capacitor/core": "7.6.9"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "7.6.9"
+  }
+}

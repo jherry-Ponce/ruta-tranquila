@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Voy Tranqui</string>
+    <string name="title_activity_main">Voy Tranqui</string>
+    <string name="package_name">pe.voytranqui.app</string>
+    <string name="custom_url_scheme">pe.voytranqui.app</string>
+    <!-- Notificación fija mientras el modo viaje sigue tu ubicación con la pantalla apagada. -->
+    <string name="capacitor_background_geolocation_notification_channel_name">Guía de viaje</string>
+    <string name="capacitor_background_geolocation_notification_icon">drawable/ic_notificacion</string>
+    <string name="capacitor_background_geolocation_notification_color">#0F5E57</string>
+</resources>

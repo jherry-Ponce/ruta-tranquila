@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ícono de Voy Tranqui (mismo dibujo que public/icono.svg): un camino suave entre dos puntos.
+     Escalado 1,4 y centrado en la zona segura de 66 dp del ícono adaptable. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:scaleX="1.4" android:scaleY="1.4" android:translateX="9.2" android:translateY="8.5">
+        <path
+            android:pathData="M16,50c10,-4 6,-14 16,-18s8,-14 16,-16"
+            android:strokeColor="#BBF7D0"
+            android:strokeWidth="6"
+            android:strokeLineCap="round" />
+        <path android:fillColor="#FFFFFF" android:pathData="M11,50a5,5 0 1,0 10,0a5,5 0 1,0 -10,0" />
+        <path android:fillColor="#FFFFFF" android:pathData="M43,16a5,5 0 1,0 10,0a5,5 0 1,0 -10,0" />
+    </group>
+</vector>

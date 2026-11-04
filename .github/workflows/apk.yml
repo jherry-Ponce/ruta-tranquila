@@ -1,0 +1,83 @@
+# Arma el APK de Voy Tranqui (Android) cuando cambia la parte nativa (android-app/).
+# Los cambios de la web no necesitan un APK nuevo: la app carga la web publicada en Vercel.
+#
+# En main publica el APK firmado como "Release" del repositorio, para descargarlo desde el celular.
+# Requiere los secretos ANDROID_KEYSTORE_BASE64 y ANDROID_KEYSTORE_PASSWORD (ver android-app/README.md).
+name: APK Android
+
+on:
+  push:
+    branches: [main, app-android]
+    paths: ['android-app/**', '.github/workflows/apk.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android-app
+    env:
+      VERSION_CODE: ${{ github.run_number }}
+      VERSION_NAME: 1.0.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Preparar el proyecto Android
+        run: |
+          npm ci
+          npx cap sync android
+
+      - name: Llave de firma
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            if [ "$GITHUB_REF_NAME" = "main" ]; then
+              echo "::error::Faltan los secretos ANDROID_KEYSTORE_BASE64 y ANDROID_KEYSTORE_PASSWORD (ver android-app/README.md)."
+              exit 1
+            fi
+            echo "::warning::Sin llave de firma: se arma un APK sin firmar solo para comprobar que compila."
+            exit 0
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/voytranqui.jks"
+          echo "KEYSTORE_PATH=$RUNNER_TEMP/voytranqui.jks" >> "$GITHUB_ENV"
+          echo "KEYSTORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Compilar APK
+        working-directory: android-app/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+          apk=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          mkdir -p "$RUNNER_TEMP/salida"
+          cp "$apk" "$RUNNER_TEMP/salida/voy-tranqui-$VERSION_NAME.apk"
+          ls -la "$RUNNER_TEMP/salida"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voy-tranqui-${{ env.VERSION_NAME }}
+          path: ${{ runner.temp }}/salida/*.apk
+
+      - name: Publicar en Releases
+        if: github.ref_name == 'main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v$VERSION_NAME" "$RUNNER_TEMP/salida/voy-tranqui-$VERSION_NAME.apk" \
+            --target "$GITHUB_SHA" \
+            --title "Voy Tranqui $VERSION_NAME" \
+            --notes "APK para Android. Ábrelo desde el celular para instalarlo (la primera vez, permite instalar apps de este origen)."
