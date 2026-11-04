@@ -1,0 +1,21 @@
+# Corre las pruebas en cada push y pull request. La publicación la hace Vercel por su cuenta:
+# el proyecto ruta-tranquila está conectado a este repositorio y despliega cada push a main.
+name: Pruebas
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm test

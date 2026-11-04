@@ -185,16 +185,14 @@ Si la salida cae de lunes a viernes entre las 7:00 y las 9:30 o entre las 17:00 
 
 ## Publicar (Vercel)
 
-Está publicada en Vercel (proyecto `ruta-tranquila`, equipo `jherryponces-projects`). Para publicar desde
-cualquier máquina basta con hacer `git push` a `main`: el workflow [.github/workflows/desplegar.yml](.github/workflows/desplegar.yml)
-corre `npm test` y, si pasan, despliega en producción. También se puede volver a publicar desde la pestaña
-**Actions → Desplegar en Vercel → Run workflow**.
+Está publicada en Vercel (proyecto `ruta-tranquila`, equipo `jherryponces-projects`), conectada a este
+repositorio de GitHub: cada `git push` a `main` se publica solo, desde cualquier máquina. Los pull requests
+generan una vista previa. El workflow [.github/workflows/pruebas.yml](.github/workflows/pruebas.yml) corre
+`npm test` en cada push.
 
-Configuración única:
-
-1. Con la cuenta dueña del equipo `jherryponces-projects`, crear un token en https://vercel.com/account/tokens
-   (alcance: ese equipo).
-2. En GitHub, **Settings → Secrets and variables → Actions → New repository secret**: nombre `VERCEL_TOKEN`, valor el token.
+Para conectarlo (una sola vez, con la cuenta dueña del proyecto): en Vercel, **ruta-tranquila → Settings → Git →
+Connect Git Repository → GitHub → jherry-Ponce/ruta-tranquila**, o desde una máquina con esa cuenta en el CLI:
+`npx vercel git connect https://github.com/jherry-Ponce/ruta-tranquila`.
 
 Las keys de ORS y TomTom siguen en las variables de entorno del proyecto en Vercel; no van en el repositorio.
 
