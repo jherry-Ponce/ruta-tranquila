@@ -41,6 +41,10 @@ aprendiendo a manejar (auto, moto eléctrica) o va en bici/monopatín. Producci�
 - Bici: `bonoCiclovia` en `config/tranquilidad.js`. Se ajusta el **origen** a una ciclovía solo si se sale por una avenida (`server/snap-ciclovia.js`); el **destino** nunca, porque producía rodeos largos.
 - App Android: Capacitor y no Flutter ni Kotlin, para no reescribir la app; carga la web remota para que cada push
   llegue sin reinstalar. GitHub Actions arma y firma el APK (`.github/workflows/apk.yml`); la llave nunca va al repo.
+- Código web que corre dentro de la app: la web se carga remota y **no incluye `@capacitor/core`**, así que no existe
+  `Capacitor.registerPlugin`; los plugins se llaman con `Capacitor.nativePromise(plugin, método, opciones)` y
+  `Capacitor.nativeCallback(...)`. El WebView de Android **no tiene `speechSynthesis`**: nunca usarlo como global
+  sin `window.`. Todo cambio en `public/viaje.js` debe probarse en web y en app (ver `test/viaje.test.js`).
 - Modo viaje (`public/viaje.js`): la guía es por voz porque el novato no va con el celular en la mano. Un navegador no recibe GPS con la pantalla apagada; por eso hay modo bolsillo (pantalla negra encendida con Wake Lock), retomar al volver y "Seguir con Google Maps". La solución completa en segundo plano requeriría una app nativa.
 
 - Tiempo total: incluye la caminata inicial a la ciclovía. Se conserva la duración del recorrido y se entrega `duracionTotalSegundos` por separado; la caminata sigue siendo una estimación en línea recta, no una ruta peatonal.

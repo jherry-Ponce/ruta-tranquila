@@ -17,25 +17,36 @@ const paraVoz = (t) =>
 
 // Dentro de la app Android (Capacitor) hay GPS y voz nativos, que siguen funcionando con la pantalla
 // apagada. En el navegador se usan los de la web.
-const nativo = typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.() === true;
-const pluginNativo = (nombre) => window.Capacitor.registerPlugin(nombre);
+// La web se carga desde Vercel sin la librería de Capacitor: no existe `Capacitor.registerPlugin`, solo las
+// funciones del puente que la app inyecta (`nativePromise` para llamadas y `nativeCallback` para avisos repetidos).
+const capacitor = typeof window !== 'undefined' ? window.Capacitor : undefined;
+const nativo = capacitor?.isNativePlatform?.() === true && typeof capacitor.nativePromise === 'function';
+const llamarNativo = (plugin, metodo, opciones = {}) => window.Capacitor.nativePromise(plugin, metodo, opciones);
+const seguirNativo = (plugin, metodo, opciones, aviso) => window.Capacitor.nativeCallback(plugin, metodo, opciones, aviso);
 
-let vozNativa = null;
 let idiomaNativo = null;
 async function hablarNativo(texto, urgente) {
-  vozNativa ??= pluginNativo('TextToSpeech');
   idiomaNativo ??= (async () => {
     for (const lang of ['es-PE', 'es-419', 'es-US', 'es-MX', 'es-ES']) {
       try {
-        if ((await vozNativa.isLanguageSupported({ lang })).supported) return lang;
+        if ((await llamarNativo('TextToSpeech', 'isLanguageSupported', { lang })).supported) return lang;
       } catch {
         // Se prueba el siguiente.
       }
     }
     return 'es-ES';
   })();
-  // queueStrategy: 0 corta lo que se está diciendo, 1 lo pone en cola.
-  vozNativa.speak({ text: paraVoz(texto), lang: await idiomaNativo, rate: 1, queueStrategy: urgente ? 0 : 1 }).catch(() => {});
+  try {
+    // queueStrategy: 0 corta lo que se está diciendo, 1 lo pone en cola.
+    await llamarNativo('TextToSpeech', 'speak', { text: paraVoz(texto), lang: await idiomaNativo, rate: 1, queueStrategy: urgente ? 0 : 1 });
+  } catch (error) {
+    console.warn('Voz nativa:', error);
+  }
+}
+
+function callar() {
+  if (nativo) llamarNativo('TextToSpeech', 'stop').catch(() => {});
+  else window.speechSynthesis?.cancel();
 }
 
 function hablar(texto, urgente = false) {
@@ -273,8 +284,48 @@ export function iniciarViaje(ruta, { mapa, el, ensayo, alRecalcular }) {
     }
   }
 
-  let detener;
+  let detener = () => {};
   let reiniciarGps = () => {};
+
+  // GPS nativo con un servicio en primer plano: Android muestra una notificación fija y sigue entregando
+  // la ubicación con la pantalla apagada o el celular en el bolsillo. Si no se puede iniciar, devuelve
+  // false y el viaje sigue con el GPS de la web.
+  function iniciarGpsNativo() {
+    try {
+      const idNativo = seguirNativo(
+        'BackgroundGeolocation',
+        'addWatcher',
+        {
+          backgroundTitle: 'Voy Tranqui · viaje en curso',
+          backgroundMessage: 'Te sigo guiando por voz aunque apagues la pantalla.',
+          requestPermissions: true,
+          stale: false,
+          distanceFilter: 5,
+        },
+        (posicion, error) => {
+          if (terminado) return;
+          if (error) {
+            if (error.code === 'NOT_AUTHORIZED') {
+              instruccion.textContent = 'Activa el permiso de ubicación de Voy Tranqui para usar el modo viaje.';
+              if (window.confirm('Voy Tranqui necesita tu ubicación para guiarte. ¿Abrir los ajustes ahora?')) {
+                llamarNativo('BackgroundGeolocation', 'openSettings').catch(() => {});
+              }
+            } else {
+              instruccion.textContent = `No puedo obtener tu ubicación (${error.message || error.code || 'GPS'}).`;
+            }
+            return;
+          }
+          if (posicion) actualizar(posicion.latitude, posicion.longitude);
+        },
+      );
+      instruccion.textContent = 'Buscando tu ubicación…';
+      detener = () => llamarNativo('BackgroundGeolocation', 'removeWatcher', { id: idNativo }).catch(() => {});
+      return true;
+    } catch (error) {
+      console.warn('GPS nativo:', error);
+      return false;
+    }
+  }
   if (ensayo) {
     let s = 0;
     const id = setInterval(() => {
@@ -285,42 +336,8 @@ export function iniciarViaje(ruta, { mapa, el, ensayo, alRecalcular }) {
       actualizar(la[0] + t * (lo[0] - la[0]), la[1] + t * (lo[1] - la[1]));
     }, 1000);
     detener = () => clearInterval(id);
-  } else if (nativo) {
-    // GPS nativo con un servicio en primer plano: Android muestra una notificación fija y sigue
-    // entregando la ubicación con la pantalla apagada o el celular en el bolsillo.
-    const gps = pluginNativo('BackgroundGeolocation');
-    let idNativo = null;
-    let cancelado = false;
-    gps
-      .addWatcher(
-        {
-          backgroundTitle: 'Voy Tranqui · viaje en curso',
-          backgroundMessage: 'Te sigo guiando por voz aunque apagues la pantalla.',
-          requestPermissions: true,
-          stale: false,
-          distanceFilter: 5,
-        },
-        (posicion, error) => {
-          if (error) {
-            if (error.code === 'NOT_AUTHORIZED') {
-              instruccion.textContent = 'Activa el permiso de ubicación de Voy Tranqui para usar el modo viaje.';
-              if (window.confirm('Voy Tranqui necesita tu ubicación para guiarte. ¿Abrir los ajustes ahora?')) gps.openSettings();
-            } else {
-              instruccion.textContent = 'No puedo obtener tu ubicación.';
-            }
-            return;
-          }
-          if (posicion) actualizar(posicion.latitude, posicion.longitude);
-        },
-      )
-      .then((idWatcher) => {
-        if (cancelado) gps.removeWatcher({ id: idWatcher });
-        else idNativo = idWatcher;
-      });
-    detener = () => {
-      cancelado = true;
-      if (idNativo) gps.removeWatcher({ id: idNativo });
-    };
+  } else if (nativo && iniciarGpsNativo()) {
+    // GPS nativo iniciado (ver iniciarGpsNativo).
   } else {
     let id = null;
     // Algunos navegadores no reanudan el seguimiento del GPS tras congelar la página: se vuelve a pedir.
@@ -342,11 +359,20 @@ export function iniciarViaje(ruta, { mapa, el, ensayo, alRecalcular }) {
 
   function terminar(cancelar, espera = 0) {
     terminado = true;
-    detener();
-    document.removeEventListener('visibilitychange', alCambiarVisibilidad);
-    if (capaBolsillo) salirBolsillo();
-    bloqueo?.release?.().catch(() => {});
-    if (cancelar) speechSynthesis?.cancel();
+    // Pase lo que pase al apagar el GPS o la voz, la barra del viaje se cierra.
+    for (const paso of [
+      () => detener(),
+      () => document.removeEventListener('visibilitychange', alCambiarVisibilidad),
+      () => capaBolsillo && salirBolsillo(),
+      () => bloqueo?.release?.().catch(() => {}),
+      () => cancelar && callar(),
+    ]) {
+      try {
+        paso();
+      } catch (error) {
+        console.warn('Al terminar el viaje:', error);
+      }
+    }
     setTimeout(() => {
       marcador.remove();
       caja.hidden = true;
