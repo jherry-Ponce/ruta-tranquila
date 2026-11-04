@@ -27,6 +27,41 @@ function hablar(texto, urgente = false) {
 
 const redondear = (m) => (m > 100 ? Math.round(m / 50) * 50 : Math.round(m / 10) * 10);
 
+const MANTENER_PARA_SALIR = 2000; // ms: en modo bolsillo, mantener presionado para volver
+
+// Ubica un punto sobre la ruta (P y acumulado en metros). Normalmente busca cerca de donde ibas para
+// no saltar a otro tramo; con `amplia` busca en todo lo que falta, porque al volver a encender la
+// pantalla la persona pudo avanzar mucho sin que el navegador recibiera el GPS.
+export function proyectarEnRuta(P, acumulado, xy, recorrido, amplia = false) {
+  let mejor = { d: Infinity, s: recorrido };
+  for (let i = 0; i < P.length - 1; i++) {
+    if (acumulado[i + 1] < recorrido - 200 || (!amplia && acumulado[i] > recorrido + 1000)) continue;
+    const [a, b] = [P[i], P[i + 1]];
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const l2 = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((xy[0] - a[0]) * dx + (xy[1] - a[1]) * dy) / l2));
+    const d = Math.hypot(xy[0] - a[0] - t * dx, xy[1] - a[1] - t * dy);
+    if (d < mejor.d) mejor = { d, s: acumulado[i] + t * Math.sqrt(l2) };
+  }
+  return mejor;
+}
+
+// Enlace para seguir lo que falta de la ruta con Google Maps, que sí guía con la pantalla apagada.
+// Sin origen, Google Maps parte de la ubicación actual; hasta 3 puntos de paso (el límite en el
+// celular) lo mantienen sobre el recorrido tranquilo.
+export function enlaceSeguirEnGoogle(geometria, acumulado, recorrido, modo = 'driving') {
+  const total = acumulado.at(-1);
+  const fmt = ([lat, lon]) => `${lat.toFixed(5)},${lon.toFixed(5)}`;
+  const q = new URLSearchParams({ api: '1', destination: fmt(geometria.at(-1)), travelmode: modo, dir_action: 'navigate' });
+  const falta = total - recorrido;
+  if (falta > 1500) {
+    const puntos = [0.25, 0.5, 0.75].map((f) => geometria[Math.max(0, acumulado.findIndex((a) => a >= recorrido + f * falta))]);
+    q.set('waypoints', puntos.map(fmt).join('|'));
+  }
+  return `https://www.google.com/maps/dir/?${q}`;
+}
+
 export function iniciarViaje(ruta, { mapa, el, ensayo, alRecalcular }) {
   const P = ruta.geometria.map(aXY);
   const acumulado = [0];
@@ -40,43 +75,50 @@ export function iniciarViaje(ruta, { mapa, el, ensayo, alRecalcular }) {
   let ultimoAvisoFuera = 0;
   let terminado = false;
   let bloqueo = null;
+  let buscarEnTodo = false; // tras volver a encender la pantalla
+  let repetirSiguiente = false;
   const marcador = L.circleMarker(ruta.geometria[0], { radius: 9, color: '#fff', weight: 3, fillColor: '#2563eb', fillOpacity: 1 }).addTo(mapa);
 
   const caja = document.getElementById('viaje');
   const instruccion = el('p', { class: 'viaje-instruccion' }, 'Preparando…');
   const detalle = el('p', { class: 'viaje-detalle' });
   const botonRecalcular = el('button', { type: 'button', class: 'boton-secundario', hidden: true, onclick: () => { terminar(false); alRecalcular(posicionActual); } }, 'Recalcular desde aquí');
+  const modoGoogle = ruta.enlaceGoogleMaps?.includes('travelmode=bicycling') ? 'bicycling' : 'driving';
+  const enlaceGoogle = el(
+    'a',
+    { class: 'viaje-google', target: '_blank', rel: 'noopener noreferrer', href: ruta.enlaceGoogleMaps ?? '#' },
+    'Seguir con Google Maps (guía con la pantalla apagada)',
+  );
+  // El enlace se arma al tocarlo, con lo que falta del recorrido. Nuestra guía termina para que no
+  // hablen dos voces a la vez.
+  enlaceGoogle.addEventListener('click', () => {
+    enlaceGoogle.href = enlaceSeguirEnGoogle(ruta.geometria, acumulado, recorrido, modoGoogle);
+    terminar(true);
+  });
+  const botonBolsillo = el('button', { type: 'button', class: 'boton-secundario', hidden: ensayo, onclick: () => activarBolsillo() }, 'Modo bolsillo');
   caja.replaceChildren(
-    el('p', { class: 'viaje-seguridad' }, ensayo ? 'Ensayo: la guía avanza sola para que la escuches antes de salir.' : 'Pon el celular en un soporte. Si necesitas mirar el mapa, estaciónate en un lugar seguro.'),
+    el(
+      'p',
+      { class: 'viaje-seguridad' },
+      ensayo
+        ? 'Ensayo: la guía avanza sola para que la escuches antes de salir.'
+        : 'Pon el celular en un soporte. Si tienes que guardarlo, toca "Modo bolsillo" y no apagues la pantalla con el botón: apagada, el navegador deja de recibir tu ubicación.',
+    ),
     instruccion,
     detalle,
-    el('div', { class: 'viaje-botones' }, botonRecalcular, el('button', { type: 'button', class: 'boton-principal', onclick: () => terminar(true) }, 'Terminar')),
+    el('div', { class: 'viaje-botones' }, botonRecalcular, botonBolsillo, el('button', { type: 'button', class: 'boton-principal', onclick: () => terminar(true) }, 'Terminar')),
+    ...(ensayo ? [] : [enlaceGoogle]),
   );
   caja.hidden = false;
   let posicionActual = null;
-
-  // Proyecta la posición sobre la ruta, buscando cerca de donde ibas para no saltar a otro tramo.
-  function proyectar(xy) {
-    let mejor = { d: Infinity, s: recorrido };
-    for (let i = 0; i < P.length - 1; i++) {
-      if (acumulado[i + 1] < recorrido - 200 || acumulado[i] > recorrido + 1000) continue;
-      const [a, b] = [P[i], P[i + 1]];
-      const dx = b[0] - a[0];
-      const dy = b[1] - a[1];
-      const l2 = dx * dx + dy * dy || 1;
-      const t = Math.max(0, Math.min(1, ((xy[0] - a[0]) * dx + (xy[1] - a[1]) * dy) / l2));
-      const d = Math.hypot(xy[0] - a[0] - t * dx, xy[1] - a[1] - t * dy);
-      if (d < mejor.d) mejor = { d, s: acumulado[i] + t * Math.sqrt(l2) };
-    }
-    return mejor;
-  }
 
   function actualizar(lat, lon) {
     if (terminado) return;
     posicionActual = { lat, lon };
     marcador.setLatLng([lat, lon]);
     mapa.panTo([lat, lon], { animate: true });
-    const { d, s } = proyectar(aXY([lat, lon]));
+    const { d, s } = proyectarEnRuta(P, acumulado, aXY([lat, lon]), recorrido, buscarEnTodo);
+    buscarEnTodo = false;
 
     if (d > FUERA_DE_RUTA) {
       fueraDesde ??= Date.now();
@@ -114,6 +156,15 @@ export function iniciarViaje(ruta, { mapa, el, ensayo, alRecalcular }) {
     const faltan = siguiente.inicioMetros - recorrido;
     instruccion.textContent = siguiente.maniobra;
     detalle.textContent = `En ${redondear(faltan)} m${siguiente.avisos[0] ? ` · ${siguiente.avisos[0]}` : ''}`;
+    if (repetirSiguiente) {
+      // Al retomar se repite la próxima indicación aunque ya se hubiera dicho.
+      repetirSiguiente = false;
+      if (faltan > AVISO_AHORA) {
+        siguiente.dichoLejos = true;
+        hablar(`Retomando la guía. En ${redondear(faltan)} metros, ${siguiente.maniobra.charAt(0).toLowerCase()}${siguiente.maniobra.slice(1)}.`, true);
+        return;
+      }
+    }
     if (!siguiente.dichoAhora && faltan <= AVISO_AHORA) {
       siguiente.dichoAhora = siguiente.dichoLejos = true;
       hablar(`Ahora, ${siguiente.maniobra.charAt(0).toLowerCase()}${siguiente.maniobra.slice(1)}.`, true);
@@ -131,11 +182,70 @@ export function iniciarViaje(ruta, { mapa, el, ensayo, alRecalcular }) {
       // No disponible: la guía sigue, pero conviene desactivar el bloqueo automático.
     }
   };
-  const alVolver = () => document.visibilityState === 'visible' && !terminado && pedirBloqueo();
-  document.addEventListener('visibilitychange', alVolver);
+  // Con la pantalla apagada el navegador congela la página: no hay GPS ni voz. Al ocultarse se intenta
+  // avisar por voz (en algunos celulares alcanza a sonar) y al volver se retoma desde donde estés.
+  const alCambiarVisibilidad = () => {
+    if (terminado || ensayo) return;
+    if (document.visibilityState === 'hidden') {
+      hablar('La guía queda en pausa mientras la pantalla esté apagada o en otra app. Para guardar el celular, usa el modo bolsillo.', true);
+      return;
+    }
+    pedirBloqueo();
+    buscarEnTodo = true;
+    repetirSiguiente = true;
+    reiniciarGps();
+  };
+  document.addEventListener('visibilitychange', alCambiarVisibilidad);
   pedirBloqueo();
 
+  // Modo bolsillo: pantalla negra y bloqueada al tacto, pero encendida, para que el GPS y la voz sigan
+  // funcionando con el celular guardado. Para salir se mantiene presionado 2 segundos.
+  let capaBolsillo = null;
+  function activarBolsillo() {
+    if (capaBolsillo) return;
+    const barra = el('span', { class: 'bolsillo-progreso' });
+    capaBolsillo = el(
+      'div',
+      { class: 'bolsillo', role: 'button', 'aria-label': 'Modo bolsillo activo. Mantén presionado dos segundos para salir.' },
+      el('p', {}, 'Modo bolsillo · la guía sigue por voz'),
+      el('p', {}, 'Mantén presionado 2 segundos para salir'),
+      barra,
+    );
+    let temporizador = null;
+    const soltar = () => {
+      clearTimeout(temporizador);
+      barra.classList.remove('llenando');
+    };
+    capaBolsillo.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      barra.classList.add('llenando');
+      temporizador = setTimeout(salirBolsillo, MANTENER_PARA_SALIR);
+    });
+    for (const evento of ['pointerup', 'pointercancel', 'pointerleave']) capaBolsillo.addEventListener(evento, soltar);
+    capaBolsillo.addEventListener('contextmenu', (e) => e.preventDefault());
+    document.body.append(capaBolsillo);
+    document.documentElement.requestFullscreen?.().catch(() => {});
+    pedirBloqueo().then(() => {
+      hablar(
+        bloqueo
+          ? 'Modo bolsillo activado. Guarda el celular sin apagar la pantalla; te seguiré guiando por voz.'
+          : 'Modo bolsillo activado, pero este navegador no puede mantener la pantalla encendida. Desactiva el bloqueo automático del celular.',
+        true,
+      );
+    });
+  }
+  function salirBolsillo() {
+    capaBolsillo?.remove();
+    capaBolsillo = null;
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    if (!terminado && posicionActual) {
+      repetirSiguiente = true;
+      actualizar(posicionActual.lat, posicionActual.lon);
+    }
+  }
+
   let detener;
+  let reiniciarGps = () => {};
   if (ensayo) {
     let s = 0;
     const id = setInterval(() => {
@@ -147,13 +257,19 @@ export function iniciarViaje(ruta, { mapa, el, ensayo, alRecalcular }) {
     }, 1000);
     detener = () => clearInterval(id);
   } else {
-    const id = navigator.geolocation.watchPosition(
-      (p) => actualizar(p.coords.latitude, p.coords.longitude),
-      (e) => {
-        instruccion.textContent = e.code === 1 ? 'Activa el permiso de ubicación para usar el modo viaje.' : 'No puedo obtener tu ubicación.';
-      },
-      { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 },
-    );
+    let id = null;
+    // Algunos navegadores no reanudan el seguimiento del GPS tras congelar la página: se vuelve a pedir.
+    reiniciarGps = () => {
+      if (id !== null) navigator.geolocation.clearWatch(id);
+      id = navigator.geolocation.watchPosition(
+        (p) => actualizar(p.coords.latitude, p.coords.longitude),
+        (e) => {
+          instruccion.textContent = e.code === 1 ? 'Activa el permiso de ubicación para usar el modo viaje.' : 'No puedo obtener tu ubicación.';
+        },
+        { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 },
+      );
+    };
+    reiniciarGps();
     detener = () => navigator.geolocation.clearWatch(id);
   }
 
@@ -162,7 +278,8 @@ export function iniciarViaje(ruta, { mapa, el, ensayo, alRecalcular }) {
   function terminar(cancelar, espera = 0) {
     terminado = true;
     detener();
-    document.removeEventListener('visibilitychange', alVolver);
+    document.removeEventListener('visibilitychange', alCambiarVisibilidad);
+    if (capaBolsillo) salirBolsillo();
     bloqueo?.release?.().catch(() => {});
     if (cancelar) speechSynthesis?.cancel();
     setTimeout(() => {

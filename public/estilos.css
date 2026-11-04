@@ -897,3 +897,50 @@ summary {
     width: 420px;
   }
 }
+
+.viaje-google {
+  display: block;
+  margin-top: 10px;
+  color: #fff;
+  font-weight: 700;
+  text-align: right;
+}
+
+/* Modo bolsillo: pantalla negra (en OLED casi no gasta batería), encendida y bloqueada al tacto. */
+.bolsillo {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  padding: 24px;
+  background: #000;
+  color: #3a3a3a;
+  text-align: center;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.bolsillo p {
+  margin: 0;
+}
+
+.bolsillo-progreso {
+  display: block;
+  width: 180px;
+  height: 4px;
+  margin: 12px auto 0;
+  border-radius: 2px;
+  background: #1a1a1a;
+  background-image: linear-gradient(#3f8f86, #3f8f86);
+  background-repeat: no-repeat;
+  background-size: 0 100%;
+}
+
+.bolsillo-progreso.llenando {
+  background-size: 100% 100%;
+  transition: background-size 2s linear;
+}

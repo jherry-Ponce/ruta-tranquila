@@ -1,0 +1,40 @@
+# Guía para agentes (Codex, Claude Code y otros)
+
+Este archivo es el contexto compartido del proyecto. Lo leen Codex (AGENTS.md) y Claude Code (vía CLAUDE.md).
+Si tomas una decisión de diseño que el código no explica por sí solo, agrégala aquí en el mismo commit.
+
+## Qué es
+
+Ruta Tranquila: app web que busca rutas por calles tranquilas en Lima para quien está aprendiendo a manejar
+(auto, moto eléctrica) o va en bici/monopatín. Producción: https://ruta-tranquila.vercel.app
+
+## Comandos
+
+- `npm start`: servidor local en http://localhost:3000 (necesita `.env`, ver `.env.example`).
+- `npm test`: pruebas con `node --test`. Deben pasar antes de cada push.
+- `npm run datos`: vuelve a descargar las vías de OSM a `data/vias-principales-lima.json`.
+
+## Reglas del proyecto
+
+- **Sin dependencias.** Node >= 22.9 puro en el servidor; en el navegador solo Leaflet por CDN. No agregar paquetes npm sin acordarlo.
+- **Todo en español:** código, comentarios, textos de la interfaz y mensajes de commit.
+- **Publicar = `git push` a `main`.** Vercel está conectado al repo (proyecto `ruta-tranquila`) y publica cada push en ~30 s. No hace falta el CLI de Vercel. Las keys (`ORS_API_KEY`, `TOMTOM_API_KEY`) están en las variables del proyecto en Vercel y en `.env` local; nunca en el repo.
+- **Dos máquinas y dos agentes:** haz `git pull` antes de empezar y commits pequeños, para no pisar trabajo ajeno.
+
+## Decisiones ya tomadas (no revertir sin hablarlo)
+
+- OpenRouteService en `api.heigit.org/openrouteservice/v2` (el dominio viejo quedó obsoleto). `custom_model` no está disponible en la API pública.
+- Rutas tranquilas con `avoid_polygons` sobre avenidas (`server/zonas.js`); se clasifica la ruta con el archivo local de OSM (`server/analisis.js`) porque el `waytype` de ORS no distingue lo suficiente.
+- `cycling-regular` no se usa para auto: en Lima terminaba en la Vía Expresa. Para bici sí.
+- Geocoding con TomTom primero (Pelias de ORS ubicaba mal los números).
+- Tráfico TomTom: se mide en todas las rutas elegidas o en ninguna. La licencia gratuita de TomTom no permite la guía en tiempo real: el modo viaje no usa TomTom.
+- No usar Google Routes API (términos 19.2). Google Maps solo mediante enlaces (Maps URLs).
+- Bici: `bonoCiclovia` en `config/tranquilidad.js`. Se ajusta el **origen** a una ciclovía solo si se sale por una avenida (`server/snap-ciclovia.js`); el **destino** nunca, porque producía rodeos largos.
+- Modo viaje (`public/viaje.js`): la guía es por voz porque el novato no va con el celular en la mano. Un navegador no recibe GPS con la pantalla apagada; por eso hay modo bolsillo (pantalla negra encendida con Wake Lock), retomar al volver y "Seguir con Google Maps". La solución completa en segundo plano requeriría una app nativa.
+
+## Ideas abiertas
+
+- Sumar los minutos a pie de la salida al tiempo total.
+- Preferir cruces con semáforo (OSM `highway=traffic_signals`).
+- Penalizar rutas con exceso de giros.
+- App nativa o TWA con ubicación en segundo plano para guiar con la pantalla apagada.

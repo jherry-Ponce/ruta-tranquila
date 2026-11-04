@@ -75,6 +75,10 @@ Con `HOST=0.0.0.0`, cualquier persona conectada a tu Wi-Fi puede usar la app y g
   - **Manejo con confianza:** solo agrega una alternativa sin avenidas grandes, con un tope de 1,3 veces más 3 minutos.
   - Los topes están en `config/tranquilidad.js`.
 - **Iniciar viaje con voz:** sigue tu ubicación sobre la ruta, anuncia cada maniobra a unos 200 m y otra vez al llegar, y avisa 150 m antes de cada cruce o tramo crítico. Si te sales de la ruta, te pide estacionarte y ofrece "Recalcular desde aquí". Mantiene la pantalla encendida, porque con la pantalla apagada el navegador deja de dar la ubicación. Tu ubicación se queda en el celular, salvo cuando eliges recalcular. El modo viaje no usa datos de TomTom, porque su licencia gratuita excluye la guía en tiempo real.
+- **Si se cae el soporte o hay que guardar el celular:** ningún navegador da la ubicación ni habla con la pantalla apagada. Por eso el modo viaje ofrece:
+  - **Modo bolsillo:** deja la pantalla encendida pero negra y bloqueada al tacto (mantener presionado 2 s para salir), así la guía sigue por voz o por el auricular con el celular guardado. Si se apaga con el botón de encendido, la guía se detiene igual.
+  - **Retomar:** al volver a encender la pantalla, la guía busca tu posición en todo lo que falta del recorrido y repite la próxima indicación ("Retomando la guía…"), en vez de decir que te saliste de la ruta.
+  - **Seguir con Google Maps:** abre la navegación de Google Maps desde donde estés hasta el destino, con hasta 3 puntos de paso de lo que falta de la ruta tranquila. Google Maps sí guía con la pantalla apagada, pero entre esos puntos puede elegir otras calles.
 - **Ensayar recorrido:** recorre la ruta sola, a unos 40 m por segundo, para escuchar la guía antes de salir.
 
 ### Instalarla en el celular (PWA) y usar la ubicación
