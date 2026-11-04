@@ -47,6 +47,12 @@ aprendiendo a manejar (auto, moto eléctrica) o va en bici/monopatín. Producci�
 - Semáforos: solo se reduce la penalización si todas las calzadas detectadas en el cruce tienen una señal OSM en esa misma vía, a no más de 35 m. Sin coincidencia significa información desconocida. Se comparan las alternativas existentes; no se fuerza el paso por una señal.
 - Giros: se usan maniobras ORS, no curvas geométricas. Se toleran 2 giros ponderados por km (mínimo 4 por viaje), con peso adicional para giros cerrados, vueltas en U y maniobras separadas por menos de 80 m. El descuento máximo es 12 puntos; ajustes en `config/tranquilidad.js`.
 
+- Puntaje: el bono de ciclovía solo completa hasta 100 la base redondeada del recorrido, antes de restar cruces, tráfico y giros. El desglose muestra el bono aplicado, no el teórico; así los riesgos no desaparecen al saturar en 100.
+- Calibración: `npm run calibrar` compara casos sintéticos de referencia y comprueba su orden esperado. No representan trayectos reales ni validación de seguridad en campo; para ajustar pesos con Lima se necesitan recorridos revisados por el usuario.
+
+- Dirección confirmada por el usuario: Jirón Manuel Candamo 820, Lince = lat -12.0816676, lon -77.0280865. TomTom devolvía un punto 1,64 km al oeste aunque lo etiquetaba como exacto. La corrección vive en `server/ubicaciones-confirmadas.js`, aplica a búsqueda y sugerencias y no se extiende a otros números ni distritos.
+- Enlaces de Google Maps: se acepta un punto explícito del lugar (`!3d...!4d...`, `query` o `q` con coordenadas); `@lat,lon` solo es el centro de cámara y no se usa como destino. Los enlaces cortos se expanden con redirecciones manuales solo a hosts de Google Maps permitidos. No se consulta Google Routes.
+
 ## Ideas abiertas
 
 - Cambiar los textos visibles de la web de "Ruta Tranquila" a "Voy Tranqui" (pendiente de aprobar).

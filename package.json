@@ -10,6 +10,7 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env server/index.js",
     "datos": "node scripts/descargar-vias.js",
-    "test": "node --test"
+    "test": "node --test",
+    "calibrar": "node scripts/calibrar.js"
   }
 }

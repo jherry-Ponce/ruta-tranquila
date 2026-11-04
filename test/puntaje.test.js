@@ -75,3 +75,21 @@ test('un semáforo reduce parcialmente la penalización y los giros restan', () 
   assert.equal(complejo.valor, señalizado.valor - 6);
   assert.equal(complejo.desglose.giros, -6);
 });
+
+test('el bono no oculta cruces, giros ni tráfico en una ciclovía que ya alcanza 100', () => {
+  const datos = analisis({ ciclovia: 3000 }, [{ clase: 'primaria' }]);
+  datos.giros = { cantidad: 12, penalizacion: 6 };
+  const p = calcularPuntaje(datos, { confiable: true, tramos: [{ gravedad: 3 }] }, cfg, 'bici');
+  assert.equal(p.valor, 81);
+  assert.equal(p.desglose.ciclovias, 0);
+  assert.doesNotMatch(p.explicacion, /suma \+/);
+});
+
+test('el bono aplicado completa la base hasta 100 y el desglose coincide con el total', () => {
+  const datos = analisis({ ciclovia: 1500, residencial: 1200, menor: 300 }, [{ clase: 'primaria' }]);
+  const p = calcularPuntaje(datos, null, cfg, 'bici');
+  assert.equal(p.valor, 95);
+  assert.equal(p.desglose.ciclovias, 2);
+  assert.match(p.explicacion, /suma \+2 puntos/);
+  assert.equal(Object.values(p.desglose).reduce((s, v) => s + v, 0), p.valor);
+});

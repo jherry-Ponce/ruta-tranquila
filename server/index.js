@@ -93,14 +93,14 @@ const API = {
 
   async '/api/geocodificar'(cuerpo) {
     const texto = String(cuerpo.texto ?? '').trim();
-    if (texto.length < 3 || texto.length > 200) throw new ErrorServicio('Escribe una dirección de entre 3 y 200 caracteres.', 400);
+    if (texto.length < 3 || texto.length > (/^https?:\/\//i.test(texto) ? 2048 : 200)) throw new ErrorServicio('Escribe una dirección de entre 3 y 200 caracteres o pega un enlace de Google Maps (máximo 2048).', 400);
     if (!puedeGeocodificar()) throw new ErrorServicio('Demasiadas búsquedas seguidas. Espera un momento.', 429);
     return { lugares: await buscarDireccion(texto, cfg.limitesLima) };
   },
 
   async '/api/sugerencias'(cuerpo) {
     const texto = String(cuerpo.texto ?? '').trim();
-    if (texto.length < 3 || texto.length > 200) return { lugares: [] };
+    if (texto.length < 3 || texto.length > (/^https?:\/\//i.test(texto) ? 2048 : 200)) return { lugares: [] };
     if (!puedeSugerir()) throw new ErrorServicio('Demasiadas búsquedas seguidas. Espera un momento.', 429);
     return { lugares: await sugerirLugares(texto, cfg.limitesLima) };
   },

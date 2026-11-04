@@ -23,6 +23,12 @@ Mini app web para quienes están aprendiendo a manejar moto, moto eléctrica, sc
 
 El archivo `.env` está en `.gitignore`, así que tus keys no se suben a git. El navegador nunca ve las keys: todas las consultas pasan por el servidor local.
 
+## Elegir un punto mediante Google Maps
+
+En Desde o Hasta puedes pegar el enlace completo de un lugar o pin de Google Maps, o un enlace corto compartido. Selecciona la sugerencia o busca la ruta para colocar el punto. Si el enlace solo contiene el centro de la cámara, un recorrido o un identificador sin coordenadas, la app pide compartir un lugar o elegir el punto en el mapa. Los puntos deben estar en Lima o Callao.
+
+La dirección Jirón Manuel Candamo 820, Lince tiene una corrección puntual confirmada por el usuario: el proveedor la ubicaba aproximadamente 1,64 km al oeste. No se modifican otras numeraciones.
+
 ## Conseguir las keys
 
 ### OpenRouteService (obligatoria)
@@ -93,6 +99,14 @@ El celular solo permite instalar la app y darle tu ubicación si la abres con **
 2. **Probar con un túnel temporal**, por ejemplo `cloudflared tunnel --url http://localhost:3000`, que da una dirección `https://...trycloudflare.com`.
 
 Luego, en Android abre la app en Chrome y elige "Instalar app". En iPhone, ábrela en Safari y usa Compartir → "Agregar a pantalla de inicio".
+
+## Comprobar el puntaje
+
+Ejecuta `npm run calibrar` para comparar 12 pares de rutas sintéticas sin consumir APIs. Los casos están en `data/calibracion-puntaje.json`: cada par declara una ruta preferida y una alternativa. El comando falla si el puntaje no respeta ese orden; las mismas comparaciones forman parte de `npm test`.
+
+El bono de ciclovía completa la base del recorrido hasta 100 antes de restar cruces, tráfico y giros. Por ejemplo, una ciclovía sin cruces puede tener 100 y una idéntica con un cruce de avenida grande sin información de semáforo, 95. El desglose muestra solo el bono efectivamente aplicado.
+
+Estos casos verifican coherencia del cálculo, no validan calles de Lima. Para calibrar con experiencia real hacen falta origen y destino (pueden ser lugares públicos), vehículo, nivel y las calles que se prefieren o se evitan. Se comparan las alternativas propuestas con esa expectativa antes de ajustar los pesos.
 
 ## Cómo funciona
 

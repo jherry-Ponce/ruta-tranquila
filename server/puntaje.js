@@ -53,10 +53,15 @@ export function calcularPuntaje(analisis, trafico, cfg, vehiculo = 'auto') {
   // En bici o monopatín, una ciclovía separada de los autos es más segura que una calle
   // residencial. Se premia de forma explícita y acotada para que los cruces sigan pesando.
   const porcentajeCiclovia = (100 * (analisis.metrosPorClase.ciclovia ?? 0)) / total;
-  const bonoCiclovia =
+  const bonoDisponible =
     vehiculo === 'bici'
       ? Math.min(cfg.bonoCiclovia.maximo, Math.round(porcentajeCiclovia * cfg.bonoCiclovia.puntosPorPorcentaje))
       : 0;
+
+  // El bono solo completa el puntaje del recorrido hasta 100, antes de descontar riesgos.
+  // Así los cruces, el tráfico y los giros no quedan ocultos por puntos sobrantes.
+  const baseRedondeada = Math.round(base);
+  const bonoCiclovia = Math.min(bonoDisponible, Math.max(0, 100 - baseRedondeada));
 
   // Los cruces se cuentan por cada `kmReferenciaCruces` km: un viaje largo cruza más avenidas por fuerza,
   // y así el puntaje compara qué tan seguido aparecen, no solo cuántos son.
@@ -72,7 +77,7 @@ export function calcularPuntaje(analisis, trafico, cfg, vehiculo = 'auto') {
   );
 
   const penalGiros = analisis.giros?.penalizacion ?? 0;
-  const valor = Math.max(0, Math.min(100, Math.round(base + bonoCiclovia - penalCruces - penalTrafico - penalGiros)));
+  const valor = Math.max(0, Math.min(100, baseRedondeada + bonoCiclovia - penalCruces - penalTrafico - penalGiros));
   const etiqueta = cfg.etiquetas.find((e) => valor >= e.desde)?.texto ?? '';
   const pct = porcentajes(analisis.metrosPorClase, total);
 
@@ -94,6 +99,6 @@ export function calcularPuntaje(analisis, trafico, cfg, vehiculo = 'auto') {
     etiqueta,
     explicacion,
     porcentajes: pct,
-    desglose: { base: Math.round(base), ciclovias: bonoCiclovia, cruces: -penalCruces, trafico: -penalTrafico, giros: -penalGiros },
+    desglose: { base: baseRedondeada, ciclovias: bonoCiclovia, cruces: -penalCruces, trafico: -penalTrafico, giros: -penalGiros },
   };
 }

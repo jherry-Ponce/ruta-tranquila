@@ -1,0 +1,452 @@
+{
+  "descripcion": "Casos sintéticos: verifican coherencia del puntaje, no seguridad de trayectos reales.",
+  "casos": [
+    {
+      "nombre": "Ciclovía: cruce desconocido frente a ningún cruce",
+      "vehiculo": "bici",
+      "preferida": {
+        "metrosPorClase": {
+          "ciclovia": 3000
+        }
+      },
+      "alternativa": {
+        "metrosPorClase": {
+          "ciclovia": 3000
+        },
+        "cruces": [
+          {
+            "clase": "primaria",
+            "semaforo": false
+          }
+        ]
+      }
+    },
+    {
+      "nombre": "Ciclovía: semáforo registrado frente a información desconocida",
+      "vehiculo": "bici",
+      "preferida": {
+        "metrosPorClase": {
+          "ciclovia": 3000
+        },
+        "cruces": [
+          {
+            "clase": "primaria",
+            "semaforo": true
+          }
+        ]
+      },
+      "alternativa": {
+        "metrosPorClase": {
+          "ciclovia": 3000
+        },
+        "cruces": [
+          {
+            "clase": "primaria",
+            "semaforo": false
+          }
+        ]
+      }
+    },
+    {
+      "nombre": "Ciclovía: cuatro giros frente a doce",
+      "vehiculo": "bici",
+      "preferida": {
+        "metrosPorClase": {
+          "ciclovia": 3000
+        },
+        "maniobras": [
+          {
+            "tipo": 0,
+            "en": 0
+          },
+          {
+            "tipo": 0,
+            "en": 180
+          },
+          {
+            "tipo": 0,
+            "en": 360
+          },
+          {
+            "tipo": 0,
+            "en": 540
+          }
+        ]
+      },
+      "alternativa": {
+        "metrosPorClase": {
+          "ciclovia": 3000
+        },
+        "maniobras": [
+          {
+            "tipo": 0,
+            "en": 0
+          },
+          {
+            "tipo": 0,
+            "en": 180
+          },
+          {
+            "tipo": 0,
+            "en": 360
+          },
+          {
+            "tipo": 0,
+            "en": 540
+          },
+          {
+            "tipo": 0,
+            "en": 720
+          },
+          {
+            "tipo": 0,
+            "en": 900
+          },
+          {
+            "tipo": 0,
+            "en": 1080
+          },
+          {
+            "tipo": 0,
+            "en": 1260
+          },
+          {
+            "tipo": 0,
+            "en": 1440
+          },
+          {
+            "tipo": 0,
+            "en": 1620
+          },
+          {
+            "tipo": 0,
+            "en": 1800
+          },
+          {
+            "tipo": 0,
+            "en": 1980
+          }
+        ]
+      }
+    },
+    {
+      "nombre": "Ciclovía: tráfico confiable frente a recorrido despejado",
+      "vehiculo": "bici",
+      "preferida": {
+        "metrosPorClase": {
+          "ciclovia": 3000
+        }
+      },
+      "alternativa": {
+        "metrosPorClase": {
+          "ciclovia": 3000
+        },
+        "trafico": {
+          "confiable": true,
+          "tramos": [
+            {
+              "gravedad": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "nombre": "Ciclovía mixta: cruce frente a ningún cruce",
+      "vehiculo": "bici",
+      "preferida": {
+        "metrosPorClase": {
+          "ciclovia": 1500,
+          "residencial": 1200,
+          "menor": 300
+        }
+      },
+      "alternativa": {
+        "metrosPorClase": {
+          "ciclovia": 1500,
+          "residencial": 1200,
+          "menor": 300
+        },
+        "cruces": [
+          {
+            "clase": "primaria",
+            "semaforo": false
+          }
+        ]
+      }
+    },
+    {
+      "nombre": "Calles residenciales frente a avenida grande",
+      "vehiculo": "bici",
+      "preferida": {
+        "metrosPorClase": {
+          "residencial": 3000
+        }
+      },
+      "alternativa": {
+        "metrosPorClase": {
+          "primaria": 3000
+        }
+      }
+    },
+    {
+      "nombre": "Giros normales frente a vueltas en U",
+      "vehiculo": "bici",
+      "preferida": {
+        "metrosPorClase": {
+          "ciclovia": 3000
+        },
+        "maniobras": [
+          {
+            "tipo": 0,
+            "en": 0
+          },
+          {
+            "tipo": 0,
+            "en": 180
+          },
+          {
+            "tipo": 0,
+            "en": 360
+          },
+          {
+            "tipo": 0,
+            "en": 540
+          }
+        ]
+      },
+      "alternativa": {
+        "metrosPorClase": {
+          "ciclovia": 3000
+        },
+        "maniobras": [
+          {
+            "tipo": 9,
+            "en": 0
+          },
+          {
+            "tipo": 9,
+            "en": 180
+          },
+          {
+            "tipo": 9,
+            "en": 360
+          },
+          {
+            "tipo": 9,
+            "en": 540
+          }
+        ]
+      }
+    },
+    {
+      "nombre": "Giros espaciados frente a giros seguidos",
+      "vehiculo": "bici",
+      "preferida": {
+        "metrosPorClase": {
+          "ciclovia": 3000
+        },
+        "maniobras": [
+          {
+            "tipo": 0,
+            "en": 0
+          },
+          {
+            "tipo": 0,
+            "en": 180
+          },
+          {
+            "tipo": 0,
+            "en": 360
+          },
+          {
+            "tipo": 0,
+            "en": 540
+          }
+        ]
+      },
+      "alternativa": {
+        "metrosPorClase": {
+          "ciclovia": 3000
+        },
+        "maniobras": [
+          {
+            "tipo": 0,
+            "en": 0
+          },
+          {
+            "tipo": 0,
+            "en": 40
+          },
+          {
+            "tipo": 0,
+            "en": 80
+          },
+          {
+            "tipo": 0,
+            "en": 120
+          }
+        ]
+      }
+    },
+    {
+      "nombre": "Mejor ciclovía mixta frente a calles de mayor movimiento",
+      "vehiculo": "bici",
+      "preferida": {
+        "metrosPorClase": {
+          "ciclovia": 1000,
+          "residencial": 1800,
+          "menor": 6800,
+          "secundaria": 100,
+          "primaria": 200,
+          "vereda": 100
+        }
+      },
+      "alternativa": {
+        "metrosPorClase": {
+          "ciclovia": 500,
+          "residencial": 2600,
+          "menor": 6900
+        }
+      }
+    },
+    {
+      "nombre": "Auto: calles tranquilas frente a avenida mediana",
+      "vehiculo": "auto",
+      "preferida": {
+        "metrosPorClase": {
+          "residencial": 3000
+        }
+      },
+      "alternativa": {
+        "metrosPorClase": {
+          "secundaria": 3000
+        }
+      }
+    },
+    {
+      "nombre": "Moto: menos cruces de avenida grande",
+      "vehiculo": "motoElectrica",
+      "preferida": {
+        "metrosPorClase": {
+          "residencial": 3000
+        },
+        "cruces": [
+          {
+            "clase": "primaria",
+            "semaforo": false
+          }
+        ]
+      },
+      "alternativa": {
+        "metrosPorClase": {
+          "residencial": 3000
+        },
+        "cruces": [
+          {
+            "clase": "primaria",
+            "semaforo": false
+          },
+          {
+            "clase": "primaria",
+            "semaforo": false
+          }
+        ]
+      }
+    },
+    {
+      "nombre": "Ciclovía: menor combinación de riesgos",
+      "vehiculo": "bici",
+      "preferida": {
+        "metrosPorClase": {
+          "ciclovia": 3000
+        },
+        "cruces": [
+          {
+            "clase": "primaria",
+            "semaforo": true
+          }
+        ],
+        "maniobras": [
+          {
+            "tipo": 0,
+            "en": 0
+          },
+          {
+            "tipo": 0,
+            "en": 180
+          },
+          {
+            "tipo": 0,
+            "en": 360
+          },
+          {
+            "tipo": 0,
+            "en": 540
+          }
+        ]
+      },
+      "alternativa": {
+        "metrosPorClase": {
+          "ciclovia": 3000
+        },
+        "cruces": [
+          {
+            "clase": "primaria",
+            "semaforo": false
+          }
+        ],
+        "maniobras": [
+          {
+            "tipo": 0,
+            "en": 0
+          },
+          {
+            "tipo": 0,
+            "en": 180
+          },
+          {
+            "tipo": 0,
+            "en": 360
+          },
+          {
+            "tipo": 0,
+            "en": 540
+          },
+          {
+            "tipo": 0,
+            "en": 720
+          },
+          {
+            "tipo": 0,
+            "en": 900
+          },
+          {
+            "tipo": 0,
+            "en": 1080
+          },
+          {
+            "tipo": 0,
+            "en": 1260
+          },
+          {
+            "tipo": 0,
+            "en": 1440
+          },
+          {
+            "tipo": 0,
+            "en": 1620
+          },
+          {
+            "tipo": 0,
+            "en": 1800
+          },
+          {
+            "tipo": 0,
+            "en": 1980
+          }
+        ]
+      }
+    }
+  ]
+}

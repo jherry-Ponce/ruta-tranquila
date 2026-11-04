@@ -1,3 +1,5 @@
+import { ubicacionConfirmada } from './ubicaciones-confirmadas.js';
+import { puntoDeEnlace } from './enlaces-mapas.js';
 // Búsqueda de direcciones. Con key de TomTom se usa su geocoding, que en Lima suele encontrar el número
 // de casa; si no hay key o TomTom falla, se usa el de OpenRouteService (que a menudo solo ubica la calle).
 
@@ -27,6 +29,8 @@ const avisar = (error) => console.warn(`Búsqueda en TomTom falló (${error.mess
 const dentro = ({ lat, lon }, l) => lat >= l.sur && lat <= l.norte && lon >= l.oeste && lon <= l.este;
 
 export async function buscarDireccion(texto, limites) {
+  const confirmado = ubicacionConfirmada(texto) ?? await puntoDeEnlace(texto, limites);
+  if (confirmado) return dentro(confirmado, limites) ? [confirmado] : [];
   if (hayKeyTomTom()) {
     try {
       const q = new URLSearchParams({
@@ -57,6 +61,8 @@ export async function buscarDireccion(texto, limites) {
 
 // Sugerencias mientras se escribe: TomTom en modo "typeahead" y, si no da nada, OpenRouteService.
 export async function sugerirLugares(texto, limites) {
+  const confirmado = ubicacionConfirmada(texto) ?? await puntoDeEnlace(texto, limites);
+  if (confirmado) return dentro(confirmado, limites) ? [confirmado] : [];
   if (hayKeyTomTom()) {
     try {
       const q = new URLSearchParams({ key: process.env.TOMTOM_API_KEY, countrySet: 'PE', language: 'es-419', limit: '6', typeahead: 'true', lat: '-12.09', lon: '-77.03' });

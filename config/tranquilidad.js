@@ -15,8 +15,8 @@ export default {
   },
 
   // Solo para bicicleta o monopatín: una ciclovía protegida aporta seguridad adicional
-  // que no se refleja al tratarla igual que una calle residencial. El tope impide que
-  // unos pocos kilómetros de ciclovía oculten cruces o avenidas peligrosas del resto.
+  // que no se refleja al tratarla igual que una calle residencial. El bono completa
+  // el recorrido hasta 100 antes de restar cruces, tráfico y giros; no absorbe esos descuentos.
   bonoCiclovia: {
     puntosPorPorcentaje: 1.5,
     maximo: 15,
