@@ -88,7 +88,7 @@ Con `HOST=0.0.0.0`, cualquier persona conectada a tu Wi-Fi puede usar la app y g
 - **Mapa:** la ruta elegida se pinta por tramos (ciclovía, calle tranquila, calle con movimiento, avenida, a pie) con su leyenda. El botón de la bici muestra toda la red de ciclovías de Lima (se descarga una vez, ~65 KB) y el botón ⛶ pone el mapa en pantalla completa; al iniciar un viaje o ensayo pasa a pantalla completa solo y vuelve al terminar. En Android, "atrás" sale de la pantalla completa.
 - **Favoritos:** guarda Casa, Trabajo u otros lugares y úsalos con un toque (solo en tu equipo).
 - **Ver cómo es:** cada punto crítico abre Street View mirando hacia donde vas.
-- **Batería:** en moto eléctrica o monopatín indica cuántos km te quedan y la tarjeta dice si alcanza, contando las subidas.
+- **Batería:** en moto eléctrica o monopatín indica cuántos km te quedan y si después te quedas, vuelves o sigues a otro lugar; la tarjeta dice si alcanza (y qué tramo no), contando las subidas.
 - **Recálculo automático:** si te desvías, busca otra ruta tranquila y te avisa por voz, sin tocar el celular.
 - **Avisar:** manda por WhatsApp tu hora de llegada o "Ya llegué".
 - **¿Qué tal estuvo?:** al llegar puedes marcar puntos difíciles; las próximas rutas los evitan.

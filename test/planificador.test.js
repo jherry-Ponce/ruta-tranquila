@@ -72,6 +72,8 @@ before(() => {
     pedidos.push({ url: String(url), cuerpo });
     // Las variantes "sin avenidas" siempre mandan `options`; la rápida no.
     const features = 'options' in cuerpo ? [ruta(calma, 430, 3)] : [ruta(brasil, duracionBrasil, 1), ruta(calma, 450, 3, 2)];
+    // Igual que ORS: sin instrucciones no vienen los segmentos.
+    if (cuerpo.instructions === false) for (const f of features) delete f.properties.segments;
     return new Response(JSON.stringify({ type: 'FeatureCollection', features }), { status: 200 });
   };
 });
@@ -195,4 +197,16 @@ test('la práctica pide circuitos que vuelven al punto de salida y resume lo que
   assert.deepEqual(p.ruta.tipos, ['practica']);
   assert.match(p.resumen, /giros? a la izquierda/);
   assert.equal(p.siguienteSemilla, 5);
+});
+
+test('tramo siguiente: un solo pedido, sin avenidas, y entrega km y subidas', async () => {
+  const { tramoSiguiente } = await import('../server/planificador.js');
+  pedidos.length = 0;
+  const t = await tramoSiguiente({ desde: { lat: -12.14, lon: -77.07 }, hasta: { lat: -12.11, lon: -77.07 }, vehiculo: 'bici' }, { red });
+  assert.equal(pedidos.length, 1);
+  assert.ok(pedidos[0].url.includes('/cycling-regular/'));
+  assert.equal(pedidos[0].cuerpo.instructions, false);
+  assert.ok(pedidos[0].cuerpo.elevation);
+  assert.ok(t.distanciaMetros > 3000 && t.distanciaMetros < 4000, String(t.distanciaMetros));
+  assert.equal(typeof t.subidaMetros, 'number');
 });

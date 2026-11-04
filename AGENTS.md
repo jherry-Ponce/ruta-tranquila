@@ -85,6 +85,10 @@ aprendiendo a manejar (auto, moto eléctrica) o va en bici/monopatín. Producci�
 - Street View: enlace "Ver cómo es" en cada punto crítico (Maps URLs `map_action=pano`, rumbo de la ruta). Solo se abre si se toca.
 - Recálculo automático: si sales de la ruta más de 8 s, `viaje.js` llama `alDesviarse` (una vez cada 45 s) y reemplaza la ruta sin cortar la guía (`cargarRuta`). Si falla, vuelve al aviso de estacionarse.
 - Batería (`public/bateria.js`): ORS con `elevation: true`; 100 m de subida ≈ 1,5 km; margen de 20 %. Es una estimación y la interfaz lo dice.
+- Batería, después de llegar: "Me quedo ahí", "Vuelvo al inicio" (mismo camino, sube lo que bajó) o "Sigo a otro lugar" (punto C).
+  La pregunta aparece solo al escribir los km. El tramo B → C sale de `/api/tramo` (`tramoSiguiente`): **un** pedido ORS sin
+  avenidas grandes (bici: sin avenidas), pedido en paralelo con `/api/rutas`; solo sirve para la cuenta, la guía termina en B.
+  La tarjeta dice qué tramo no alcanza (`soloIda`) y dibuja una pila con un tramo por color y la reserva rayada.
 - Opinión al llegar o al terminar tras 500 m: valoración y puntos difíciles. Avisar por WhatsApp con `wa.me` (lo envía la persona).
 - Modo práctica (`practicar` en `server/planificador.js`): ORS `round_trip`, 4 circuitos por nivel con semillas propias del nivel (nivel×1000 + semilla), se elige con `valorar` del nivel. El resumen dice lo que trae el circuito real; en barrios rodeados de avenidas no siempre se puede cumplir el nivel. 3 prácticas sin "estresante" desbloquean el siguiente.
 - Límite: el plan gratuito de ORS admite ~40 rutas por minuto; cada búsqueda usa 3-4 y cada práctica 4.

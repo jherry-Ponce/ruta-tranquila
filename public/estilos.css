@@ -1135,13 +1135,121 @@ body.mapa-completo .mapa {
   font-size: 0.85rem;
 }
 .bateria {
-  margin: 4px 0 0;
+  margin: 6px 0 0;
   font-size: 0.9rem;
+}
+.bateria > p {
+  margin: 0;
   font-weight: 700;
 }
-.bateria-alcanza { color: var(--tranquila); }
-.bateria-justo { color: var(--alerta); }
-.bateria-noAlcanza { color: var(--error); }
+/* --b1: lo que gasta la ida; --b2: lo que gasta después (vuelta o seguir a C). */
+.bateria-alcanza { color: var(--tranquila); --b1: var(--primario); --b2: #5f9e96; }
+.bateria-justo { color: var(--alerta); --b1: var(--alerta); --b2: #dba25a; }
+.bateria-soloIda { color: var(--alerta); --b1: var(--primario); --b2: var(--error); }
+.bateria-noAlcanza { color: var(--error); --b1: var(--error); --b2: #e08d8d; }
+.bateria .bateria-pendiente {
+  margin-top: 4px;
+  font-weight: 400;
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+}
+
+/* Pila: el contorno es toda la batería que te queda; la franja rayada del final es la reserva del 20 %. */
+.medidor {
+  max-width: 300px;
+  margin: 6px 8px 0 0;
+}
+.medidor-pila {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  height: 16px;
+  padding: 2px;
+  border: 1.5px solid var(--texto-suave);
+  border-radius: 4px;
+  background: var(--superficie);
+}
+.medidor-pila::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -6px;
+  width: 4px;
+  height: 7px;
+  border-radius: 0 2px 2px 0;
+  background: var(--texto-suave);
+  transform: translateY(-50%);
+}
+.medidor-reserva {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  bottom: 2px;
+  border-left: 1px dashed var(--texto-suave);
+  background: repeating-linear-gradient(-45deg, transparent 0 3px, var(--borde) 3px 4.5px);
+}
+.medidor-tramo {
+  position: relative;
+  flex-shrink: 1;
+  min-width: 0;
+  border-radius: 2px;
+}
+.tramo-ida { background: var(--b1); }
+.tramo-despues { background: var(--b2); }
+.medidor-leyenda {
+  display: flex;
+  gap: 2px;
+  padding: 0 3.5px;
+  margin-top: 2px;
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+}
+.medidor-leyenda span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* "Después de llegar" y el punto C: aparecen solo cuando escribiste los km. */
+.bloque-despues {
+  margin-top: 10px;
+}
+.segmentos-compactos span {
+  min-height: 44px;
+  font-size: 0.88rem;
+}
+.campo-siguiente {
+  margin: 8px 0 0;
+}
+.marca-siguiente {
+  background: var(--superficie);
+  border: 2px dashed var(--texto);
+  color: var(--texto);
+}
+.marca-mapa.siguiente {
+  background: var(--superficie);
+  border: 2px dashed var(--texto);
+}
+.marca-mapa.siguiente span {
+  color: var(--texto);
+}
+.atajos-siguiente {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.campo-siguiente .pista-pequena {
+  margin-bottom: 0;
+}
+.solo-lector {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 
 /* ----- Ver la calle (Street View) ----- */
 .ver-calle {
@@ -1221,4 +1329,15 @@ body.mapa-completo .mapa {
   width: 20px;
   height: 20px;
   vertical-align: middle;
+}
+.trayecto .campo.campo-siguiente::after {
+  content: none;
+}
+.campo-siguiente .sugerencias {
+  right: 0;
+}
+/* "Ver cómo es" va debajo del texto del punto, no en la columna angosta del ícono. */
+.lista-criticos .ver-calle {
+  grid-column: 2;
+  margin-top: -4px;
 }

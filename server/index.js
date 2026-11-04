@@ -11,7 +11,7 @@ import { cargarRed, ARCHIVO_VIAS } from './vias.js';
 import { ErrorServicio, hayKeyOrs } from './ors.js';
 import { buscarDireccion, direccionDePunto, sugerirLugares } from './direcciones.js';
 import { hayKeyTomTom } from './trafico.js';
-import { planificar, practicar } from './planificador.js';
+import { planificar, practicar, tramoSiguiente } from './planificador.js';
 import { aGrados } from './geo.js';
 
 const PUBLICO = fileURLToPath(new URL('../public/', import.meta.url));
@@ -60,6 +60,7 @@ const puedeBuscarRutas = limitador(6, 60_000);
 const puedeGeocodificar = limitador(60, 60_000);
 const puedeSugerir = limitador(120, 60_000);
 const puedeReportarError = limitador(30, 60_000);
+const puedeCalcularTramo = limitador(10, 60_000);
 
 // Puntos que la persona marcó para evitar: solo coordenadas válidas dentro de Lima, como máximo 20.
 function puntosEvitar(lista) {
@@ -172,6 +173,19 @@ const API = {
     const nivel = ['principiante', 'intermedio', 'normal'].includes(cuerpo.nivel) ? cuerpo.nivel : 'principiante';
     const evitar = puntosEvitar(cuerpo.evitar);
     return planificar({ origen, destino, salida, vehiculo, nivel, evitar, ajusteRitmo: ajusteRitmo(cuerpo.ajusteRitmo), depurar: Boolean(cuerpo.depurar) }, { red, cfg });
+  },
+
+  // Tramo después de llegar (destino → otro lugar), solo para estimar la batería: 1 pedido a ORS.
+  async '/api/tramo'(cuerpo) {
+    if (!red) throw new ErrorServicio('Faltan los datos de vías. Ejecuta: npm run datos', 503);
+    const desde = validarPunto(cuerpo.desde, 'llegada');
+    const hasta = validarPunto(cuerpo.hasta, 'lugar siguiente');
+    if (Math.abs(desde.lat - hasta.lat) < 0.0004 && Math.abs(desde.lon - hasta.lon) < 0.0004) {
+      return { distanciaMetros: 0, subidaMetros: 0, bajadaMetros: 0 };
+    }
+    if (!puedeCalcularTramo()) throw new ErrorServicio('Demasiados cálculos seguidos. Espera un momento.', 429);
+    const vehiculo = cuerpo.vehiculo === 'bici' ? 'bici' : 'motoElectrica';
+    return tramoSiguiente({ desde, hasta, vehiculo, evitar: puntosEvitar(cuerpo.evitar) }, { red });
   },
 
   // Circuito de práctica que sale y vuelve al mismo punto.

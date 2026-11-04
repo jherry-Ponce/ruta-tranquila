@@ -76,9 +76,27 @@
             <div class="fila-bateria">
               <input id="autonomia" type="number" min="1" max="300" step="1" inputmode="numeric" placeholder="Ej: 25" aria-describedby="nota-bateria" />
               <span>km</span>
-              <label class="opcion"><input id="ida-vuelta" type="checkbox" /> Ida y vuelta</label>
             </div>
             <p id="nota-bateria" class="pista-pequena">Opcional. Te aviso si te alcanza, contando las subidas.</p>
+            <div id="bloque-despues" class="bloque-despues" hidden>
+              <fieldset class="segmentos segmentos-compactos">
+                <legend>Después de llegar</legend>
+                <label><input type="radio" name="despues" value="quedo" checked /><span>Me quedo ahí</span></label>
+                <label><input type="radio" name="despues" value="inicio" /><span>Vuelvo al inicio</span></label>
+                <label><input type="radio" name="despues" value="otro" /><span>Sigo a otro lugar</span></label>
+              </fieldset>
+              <div id="campo-siguiente" class="campo campo-siguiente" hidden>
+                <label for="siguiente" class="solo-lector">¿A dónde sigues?</label>
+                <div class="fila-entrada">
+                  <span class="marca marca-siguiente" aria-hidden="true">C</span>
+                  <input id="siguiente" type="text" inputmode="search" placeholder="¿A dónde sigues? Ej: tu casa" aria-describedby="nota-siguiente" />
+                </div>
+                <ul id="siguiente-sugerencias" class="sugerencias" role="listbox" hidden></ul>
+                <div id="siguiente-favoritos" class="atajos-siguiente" hidden></div>
+                <div id="siguiente-info" class="info-punto" aria-live="polite"></div>
+                <p id="nota-siguiente" class="pista-pequena">Solo para la cuenta de batería: la guía te lleva hasta B.</p>
+              </div>
+            </div>
           </div>
           <fieldset class="segmentos">
             <legend>¿Cuánta experiencia tienes?</legend>

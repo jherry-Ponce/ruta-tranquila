@@ -33,7 +33,7 @@ const CONSEJO_TRAMO = {
 // Pasa una ruta GeoJSON de ORS a un formato interno.
 function leerRuta(feature, origen) {
   const props = feature.properties;
-  const pasos = props.segments.flatMap((segmento) => segmento.steps ?? []);
+  const pasos = (props.segments ?? []).flatMap((segmento) => segmento.steps ?? []);
   const coordenadas = feature.geometry.coordinates.map(([lon, lat]) => [lon, lat]);
   return {
     origen,
@@ -505,4 +505,25 @@ export async function practicar({ origen, minutos = 20, nivel = 1, vehiculo = 'a
     girosIzquierda: izquierdas(elegida),
     ruta: formatearRuta(elegida, { tipos: ['practica'], vehiculo }),
   };
+}
+
+// ----- Tramo siguiente (solo para estimar la batería) -----
+// Después de llegar, la persona puede seguir a otro lugar. Se pide una sola ruta, parecida a la tranquila
+// (sin avenidas grandes, o sin avenidas en bici), para saber km y subidas. No se puntúa ni se guía.
+export async function tramoSiguiente({ desde, hasta, vehiculo = 'motoElectrica', evitar = [] }, { red }) {
+  const extremos = [
+    [desde.lon, desde.lat],
+    [hasta.lon, hasta.lat],
+  ];
+  const { extra_info, ...sinExtras } = BASE;
+  const cuerpo = { ...sinExtras, instructions: false, coordinates: extremos };
+  const bici = vehiculo === 'bici';
+  const clases = bici ? new Set(['autopista', 'primaria', 'secundaria']) : new Set(['autopista', 'primaria']);
+  const perfil = bici ? 'cycling-regular' : 'driving-car';
+  const zonasExtra = zonasDePuntos(evitar, [desde, hasta]);
+  let { ruta } = await sinAvenidas(cuerpo, red, extremos, clases, bici ? 'recommended' : 'shortest', 'siguiente', perfil, zonasExtra);
+  // Si las zonas dejan aislado un punto, se acepta la ruta sin zonas: sigue sirviendo para estimar.
+  ruta ??= (await sinAvenidas(cuerpo, red, extremos, new Set(['autopista']), 'recommended', 'siguiente', perfil)).ruta;
+  if (!ruta) throw new ErrorServicio('No pude calcular el tramo siguiente.', 502);
+  return { distanciaMetros: Math.round(ruta.distancia), subidaMetros: Math.round(ruta.subida), bajadaMetros: Math.round(ruta.bajada) };
 }

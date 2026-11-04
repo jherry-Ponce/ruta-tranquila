@@ -3,7 +3,7 @@
 
 import { iniciarViaje } from './viaje.js';
 import { leer, guardar, borrarTodo } from './almacen.js';
-import { estimarBateria } from './bateria.js';
+import { estimarBateria, MARGEN } from './bateria.js';
 import { enlaceStreetView, rumboEn } from './enlaces.js';
 
 const LIMA = [-12.09, -77.03];
@@ -259,7 +259,7 @@ let alertas = [];
 const iconoMarca = (cual) =>
   L.divIcon({
     className: 'contenedor-marca',
-    html: `<div class="marca-mapa ${cual}"><span>${cual === 'origen' ? 'A' : 'B'}</span></div>`,
+    html: `<div class="marca-mapa ${cual}"><span>${{ origen: 'A', destino: 'B', siguiente: 'C' }[cual]}</span></div>`,
     iconSize: [30, 30],
     iconAnchor: [15, 36],
   });
@@ -723,6 +723,9 @@ $('formulario').addEventListener('submit', async (ev) => {
     if (otraHora && !salida) throw new Error('Elige la fecha y hora de salida.');
     limpiarRutas();
     const { origen, destino } = puntos;
+    // El tramo B → C (si sigues a otro lugar) se pide junto con las rutas: no alarga la espera.
+    if (conLugarSiguiente()) await asegurarSiguiente();
+    calcularTramoSiguiente();
     const datos = await api('/api/rutas', {
       origen: { lat: origen.lat, lon: origen.lon },
       destino: { lat: destino.lat, lon: destino.lon },
@@ -761,7 +764,10 @@ for (const nombre of ['vehiculo', 'nivel']) {
 }
 
 // Sugerencias mientras escribes (lugares, calles y zonas de Lima).
-function sugerir(cual) {
+function sugerir(cual, alElegir = (l) => {
+  ponerPunto(cual, l.lat, l.lon, { etiqueta: l.etiqueta, exacto: l.exacto, texto: l.etiqueta });
+  mapa.panTo([l.lat, l.lon]);
+}) {
   const entrada = $(cual);
   const lista = $(`${cual}-sugerencias`);
   let espera;
@@ -785,8 +791,7 @@ function sugerir(cual) {
                   onmousedown: (ev) => ev.preventDefault(),
                   onclick: () => {
                     entrada.value = l.etiqueta;
-                    ponerPunto(cual, l.lat, l.lon, { etiqueta: l.etiqueta, exacto: l.exacto, texto: l.etiqueta });
-                    mapa.panTo([l.lat, l.lon]);
+                    alElegir(l);
                     lista.hidden = true;
                   },
                 },
@@ -852,19 +857,97 @@ function enlaceVerCalle(ruta, p) {
 
 const usaBateria = () => ['motoElectrica', 'bici'].includes(valorDe('vehiculo'));
 
+// "Después de llegar": me quedo, vuelvo al inicio o sigo a otro lugar (C). El tramo a C se calcula aparte
+// con un solo pedido y solo sirve para la cuenta de batería; la guía sigue terminando en B.
+let siguiente = null; // { nombre, etiqueta, texto, lat, lon }
+let marcadorSiguiente = null;
+let tramo = { clave: null, estado: 'nada', datos: null };
+
+const autonomiaKm = () => Number($('autonomia').value);
+const despuesElegido = () => document.querySelector('input[name="despues"]:checked')?.value ?? 'quedo';
+const conLugarSiguiente = () => usaBateria() && autonomiaKm() > 0 && despuesElegido() === 'otro';
+const nombreCorto = (etiqueta) => {
+  const primero = String(etiqueta ?? '').split(',')[0].trim();
+  return primero.length > 28 ? `${primero.slice(0, 27)}…` : primero || 'el otro lugar';
+};
+const claveTramo = () =>
+  siguiente && puntos.destino ? [puntos.destino.lat, puntos.destino.lon, siguiente.lat, siguiente.lon, valorDe('vehiculo')].join('|') : null;
+
 function lineaBateria(ruta) {
   if (!usaBateria()) return null;
   const subida = ruta.subidaMetros ?? 0;
-  const autonomia = Number($('autonomia').value);
-  const estimacion = estimarBateria(ruta, autonomia, $('ida-vuelta').checked);
-  const textoSubida = subida >= 15 ? ` Sube ${subida} m en total.` : '';
+  let textoSubida = subida >= 15 ? ` Sube ${subida} m en total.` : '';
+  let despues = despuesElegido() === 'inicio' ? 'inicio' : false;
+  let pendiente = null;
+  if (conLugarSiguiente() && siguiente) {
+    const vigente = tramo.clave === claveTramo();
+    if (vigente && tramo.estado === 'listo') despues = { ...tramo.datos, nombre: siguiente.nombre };
+    else if (vigente && tramo.estado === 'error') pendiente = `No pude calcular el tramo a ${siguiente.nombre}: por ahora cuento solo la ida.`;
+    else pendiente = `Calculando cuánto gastas en seguir a ${siguiente.nombre}…`;
+  }
+  const estimacion = estimarBateria(ruta, autonomiaKm(), despues);
   if (!estimacion) return textoSubida ? el('p', { class: 'ruta-datos' }, textoSubida.trim()) : null;
-  const icono = { alcanza: '🔋', justo: '⚠️', noAlcanza: '⛔' }[estimacion.estado];
-  return el('p', { class: `bateria bateria-${estimacion.estado}` }, `${icono} ${estimacion.texto}${textoSubida}`);
+  // Con dos tramos la pila ya muestra cuánto pesa cada uno; la subida de la ida sola confundiría.
+  if (estimacion.tramos.length > 1) textoSubida = '';
+  const icono = { alcanza: '🔋', justo: '⚠️', soloIda: '⚠️', noAlcanza: '⛔' }[estimacion.estado];
+  const nombreDespues = despues === 'inicio' ? 'Vuelta' : despues ? `A ${despues.nombre}` : null;
+  return el(
+    'div',
+    { class: `bateria bateria-${estimacion.estado}` },
+    el('p', {}, `${icono} ${estimacion.texto}${textoSubida}`),
+    medidorBateria(estimacion, nombreDespues),
+    pendiente && el('p', { class: 'bateria-pendiente' }, pendiente),
+  );
+}
+
+// Una pila dibujada: cada tramo ocupa lo que gasta de la batería; la franja rayada del final es la reserva (20 %).
+function medidorBateria({ tramos, autonomiaKm: capacidad }, nombreDespues) {
+  let libre = 100;
+  const anchos = tramos.map((t) => {
+    const ancho = Math.min(libre, (t.km / capacidad) * 100);
+    libre -= ancho;
+    return ancho;
+  });
+  const pila = el('div', { class: 'medidor-pila' }, el('span', { class: 'medidor-reserva' }));
+  pila.firstChild.style.left = `${MARGEN * 100}%`;
+  tramos.forEach((t, k) => {
+    const parte = el('span', { class: `medidor-tramo tramo-${t.clave}` });
+    parte.style.width = `${anchos[k]}%`;
+    pila.append(parte);
+  });
+  const medidor = el('div', { class: 'medidor', 'aria-hidden': 'true' }, pila);
+  if (nombreDespues) {
+    // Nombre de cada tramo debajo de su parte (solo si cabe).
+    const leyenda = el('div', { class: 'medidor-leyenda' });
+    ['Ida', nombreDespues].forEach((nombre, k) => {
+      const etiqueta = el('span', {}, anchos[k] >= 12 ? nombre : '');
+      etiqueta.style.width = `${anchos[k]}%`;
+      leyenda.append(etiqueta);
+    });
+    medidor.append(leyenda);
+  }
+  return medidor;
 }
 
 function actualizarCampoBateria() {
-  $('campo-bateria').hidden = !usaBateria();
+  const usa = usaBateria();
+  $('campo-bateria').hidden = !usa;
+  $('bloque-despues').hidden = !(usa && autonomiaKm() > 0);
+  $('campo-siguiente').hidden = !conLugarSiguiente();
+  pintarAtajosSiguiente();
+  const verMarcador = conLugarSiguiente() && siguiente;
+  if (verMarcador && !marcadorSiguiente) {
+    marcadorSiguiente = L.marker([siguiente.lat, siguiente.lon], {
+      icon: iconoMarca('siguiente'),
+      title: 'Después sigues aquí (solo para la cuenta de batería)',
+      keyboard: false,
+    }).addTo(mapa);
+  } else if (verMarcador) {
+    marcadorSiguiente.setLatLng([siguiente.lat, siguiente.lon]);
+  } else if (marcadorSiguiente) {
+    marcadorSiguiente.remove();
+    marcadorSiguiente = null;
+  }
 }
 
 function repintarTarjetas() {
@@ -873,18 +956,117 @@ function repintarTarjetas() {
   seleccionar(Math.min(seleccionada, rutas.length - 1));
 }
 
+function guardarBateria() {
+  const lugar = siguiente && { nombre: siguiente.nombre, etiqueta: siguiente.etiqueta, lat: siguiente.lat, lon: siguiente.lon };
+  guardar('bateria', { autonomia: autonomiaKm() || null, despues: despuesElegido(), siguiente: lugar || null });
+}
+
+function ponerSiguiente({ lat, lon, etiqueta, nombre = nombreCorto(etiqueta) }) {
+  siguiente = { lat, lon, etiqueta, nombre, texto: etiqueta };
+  $('siguiente').value = etiqueta;
+  $('siguiente-info').replaceChildren(el('span', {}, `Te ubiqué en: ${etiqueta}`));
+  guardarBateria();
+  actualizarCampoBateria();
+  calcularTramoSiguiente();
+  repintarTarjetas();
+}
+
+function quitarSiguiente() {
+  siguiente = null;
+  tramo = { clave: null, estado: 'nada', datos: null };
+  $('siguiente').value = '';
+  $('siguiente-info').replaceChildren();
+  actualizarCampoBateria();
+}
+
+// Si escribiste el lugar sin elegir una sugerencia, se busca el primero que coincida.
+async function asegurarSiguiente() {
+  const texto = $('siguiente').value.trim();
+  if (!texto) {
+    if (siguiente) {
+      quitarSiguiente();
+      guardarBateria();
+      repintarTarjetas();
+    }
+    return;
+  }
+  if (siguiente?.texto === texto) return;
+  try {
+    const { lugares } = await api('/api/geocodificar', { texto });
+    if (!lugares.length) {
+      siguiente = null;
+      $('siguiente-info').replaceChildren(el('span', { class: 'aproximado' }, `No encontré "${texto}". Prueba escribiéndolo de otra forma.`));
+      repintarTarjetas();
+      return;
+    }
+    ponerSiguiente(lugares[0]);
+  } catch (error) {
+    $('siguiente-info').replaceChildren(el('span', { class: 'aproximado' }, error.message));
+  }
+}
+
+function calcularTramoSiguiente() {
+  const clave = claveTramo();
+  if (!conLugarSiguiente() || !clave) return;
+  if (tramo.clave === clave && tramo.estado !== 'error') return;
+  tramo = { clave, estado: 'calculando', datos: null };
+  const { destino } = puntos;
+  api('/api/tramo', {
+    desde: { lat: destino.lat, lon: destino.lon },
+    hasta: { lat: siguiente.lat, lon: siguiente.lon },
+    vehiculo: valorDe('vehiculo'),
+    evitar: puntosEvitar(),
+  })
+    .then((datos) => tramo.clave === clave && (tramo = { clave, estado: 'listo', datos }))
+    .catch(() => tramo.clave === clave && (tramo = { clave, estado: 'error', datos: null }))
+    .finally(() => tramo.clave === clave && repintarTarjetas());
+}
+
+// Tus lugares guardados como atajo para el punto C.
+function pintarAtajosSiguiente() {
+  const caja = $('siguiente-favoritos');
+  const lista = leer('favoritos', []).filter((f) => !siguiente || Math.hypot(f.lat - siguiente.lat, f.lon - siguiente.lon) > 0.0002);
+  caja.hidden = !lista.length || !conLugarSiguiente();
+  caja.replaceChildren(
+    ...lista.map((f) =>
+      el('button', { type: 'button', class: 'chip', title: f.etiqueta, onclick: () => ponerSiguiente({ ...f, nombre: f.nombre }) }, `${ICONO_FAVORITO[f.nombre] ?? '⭐'} ${f.nombre}`),
+    ),
+  );
+}
+
 {
   const bateria = leer('bateria', {});
   if (bateria.autonomia) $('autonomia').value = bateria.autonomia;
-  $('ida-vuelta').checked = Boolean(bateria.idaYVuelta);
+  const despues = bateria.despues ?? (bateria.idaYVuelta ? 'inicio' : 'quedo');
+  const radio = document.querySelector(`input[name="despues"][value="${CSS.escape(despues)}"]`);
+  if (radio) radio.checked = true;
+  if (bateria.siguiente?.lat) {
+    siguiente = { ...bateria.siguiente, texto: bateria.siguiente.etiqueta };
+    $('siguiente').value = siguiente.etiqueta;
+  }
   const alCambiar = () => {
-    guardar('bateria', { autonomia: Number($('autonomia').value) || null, idaYVuelta: $('ida-vuelta').checked });
+    guardarBateria();
+    actualizarCampoBateria();
+    calcularTramoSiguiente();
     repintarTarjetas();
   };
+  // Al escribir los km aparece al toque la pregunta "Después de llegar".
+  $('autonomia').addEventListener('input', actualizarCampoBateria);
   $('autonomia').addEventListener('change', alCambiar);
-  $('ida-vuelta').addEventListener('change', alCambiar);
-  document.querySelectorAll('input[name="vehiculo"]').forEach((r) => r.addEventListener('change', actualizarCampoBateria));
-  actualizarCampoBateria();
+  document.querySelectorAll('input[name="despues"]').forEach((r) =>
+    r.addEventListener('change', () => {
+      alCambiar();
+      if (despuesElegido() === 'otro' && !siguiente) $('siguiente').focus();
+    }),
+  );
+  $('siguiente').addEventListener('change', asegurarSiguiente);
+  sugerir('siguiente', (l) => ponerSiguiente(l));
+  document.querySelectorAll('input[name="vehiculo"]').forEach((r) =>
+    r.addEventListener('change', () => {
+      actualizarCampoBateria();
+      calcularTramoSiguiente();
+    }),
+  );
 }
 
 // ----- Ritmo personal (se aprende solo, sin preguntar nada) -----
@@ -1132,7 +1314,9 @@ $('borrar-datos')?.addEventListener('click', () => {
   if (!window.confirm('¿Borrar tus favoritos, opiniones, puntos a evitar y progreso de práctica de este equipo?')) return;
   borrarTodo();
   $('autonomia').value = '';
-  $('ida-vuelta').checked = false;
+  document.querySelector('input[name="despues"][value="quedo"]').checked = true;
+  quitarSiguiente();
+  actualizarCampoBateria();
   pintarFavoritos();
   pintarNiveles();
   pintarDatosGuardados();
@@ -1140,3 +1324,6 @@ $('borrar-datos')?.addEventListener('click', () => {
 });
 
 pintarDatosGuardados();
+
+// Al final: usa los favoritos como atajos para el punto C.
+actualizarCampoBateria();
