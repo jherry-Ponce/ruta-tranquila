@@ -48,3 +48,18 @@ test('el tráfico resta solo si la medición es confiable', () => {
   assert.match(con.explicacion, /tráfico en 2 tramos/);
   assert.equal(sin.valor, 100);
 });
+
+test('para bici o monopatín una ruta con más ciclovía puede superar a una con más calles de barrio', () => {
+  const mayormenteCalles = analisis({ ciclovia: 500, residencial: 2600, menor: 6900 });
+  const masCiclovia = analisis({ ciclovia: 1000, residencial: 1800, menor: 6800, secundaria: 100, primaria: 200, vereda: 100 });
+
+  const autoA = calcularPuntaje(mayormenteCalles, null, cfg);
+  const autoB = calcularPuntaje(masCiclovia, null, cfg);
+  const biciA = calcularPuntaje(mayormenteCalles, null, cfg, 'bici');
+  const biciB = calcularPuntaje(masCiclovia, null, cfg, 'bici');
+
+  assert.ok(autoA.valor > autoB.valor);
+  assert.ok(biciB.valor > biciA.valor);
+  assert.equal(biciB.desglose.ciclovias, cfg.bonoCiclovia.maximo);
+  assert.match(biciB.explicacion, /ciclovías protegidas suma \+15 puntos/);
+});

@@ -5,6 +5,8 @@ import cfg from '../config/tranquilidad.js';
 import { cargarRed } from '../server/vias.js';
 import { aGrados, aMetros, distancia } from '../server/geo.js';
 import { planificar } from '../server/planificador.js';
+import { formatoDistancia } from '../server/pasos.js';
+import { snapACiclovia, sobreAvenida } from '../server/snap-ciclovia.js';
 
 const red = cargarRed();
 const largo = (coords) => coords.map(aMetros).reduce((s, p, i, arr) => (i ? s + distancia(arr[i - 1], p) : 0), 0);
@@ -16,6 +18,28 @@ const brasil = red.vias
   .filter((v) => v.nombre === 'Avenida Brasil' && v.clase === 'primaria' && !v.desnivel)
   .sort((a, b) => b.puntos.length - a.puntos.length)[0]
   .puntos.map(aGrados);
+
+// Una salida sobre una avenida, a distancia caminable de una ciclovía (busca en los datos reales).
+function salidaEnAvenidaCercaDeCiclovia(destino) {
+  for (const via of red.vias.filter((v) => v.clase === 'ciclovia' && !v.ramal && v.puntos.length > 1)) {
+    const [a, b] = via.puntos;
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const largo = Math.hypot(dx, dy);
+    if (largo < 1) continue;
+    for (const lado of [1, -1]) {
+      for (const metros of [60, 100, 150, 200]) {
+        const x = (a[0] + b[0]) / 2 - lado * (dy / largo) * metros;
+        const y = (a[1] + b[1]) / 2 + lado * (dx / largo) * metros;
+        if (!sobreAvenida(red, [x, y])) continue;
+        const [lon, lat] = aGrados([x, y]);
+        const snap = snapACiclovia({ lon, lat }, red, destino);
+        if (snap) return { origen: { lon, lat }, snap };
+      }
+    }
+  }
+  throw new Error('No hay en los datos una avenida junto a una ciclovía');
+}
 
 function ruta(coords, duracion, waytype, tramos = 1) {
   const n = coords.length - 1;
@@ -97,4 +121,40 @@ test('quita la ruta que otra supera en tiempo y en tranquilidad', async () => {
   } finally {
     duracionBrasil = 300;
   }
+});
+
+test('en bici, si sale por una avenida, ajusta el origen a una ciclovía cercana y avisa la caminata', async () => {
+  pedidos.length = 0;
+  // Este cruce está cerca de la Ciclovía Costa Verde, pero esa vía no es una llegada útil:
+  // el destino que se entrega a ORS debe seguir siendo el punto real elegido por la persona.
+  const destino = { lat: -12.0797622, lon: -77.1059029 };
+  const { origen, snap } = salidaEnAvenidaCercaDeCiclovia(destino);
+  const resultado = await planificar(
+    { origen, destino, salida: '2026-11-07T11:00', vehiculo: 'bici' },
+    { red, cfg },
+  );
+
+  assert.equal(pedidos.length, 3);
+  assert.ok(pedidos.every((p) => p.url.includes('/openrouteservice/v2/directions/cycling-regular/')));
+  assert.deepEqual(pedidos[0].cuerpo.coordinates[0], [snap.lon, snap.lat]);
+  assert.deepEqual(pedidos[0].cuerpo.coordinates[1], [destino.lon, destino.lat]);
+
+  const [primera] = resultado.rutas;
+  const aviso = primera.puntosCriticos.find((p) => p.tipo === 'caminata' && p.metros === 0);
+  assert.ok(aviso);
+  assert.equal(aviso.lon, origen.lon);
+  assert.equal(aviso.lat, origen.lat);
+  assert.ok(aviso.titulo.startsWith(`Camina ${formatoDistancia(snap.distanciaCaminata)} hasta la ciclovía`));
+  assert.equal(primera.caminataInicial.metros, snap.distanciaCaminata);
+  assert.equal(primera.caminataInicial.geometria.length, 2);
+});
+
+test('en bici, si sale de una calle tranquila, no cambia el origen', async () => {
+  pedidos.length = 0;
+  const origen = { lon: calma[0][0], lat: calma[0][1] };
+  const destino = { lon: calma.at(-1)[0], lat: calma.at(-1)[1] };
+  const resultado = await planificar({ origen, destino, salida: '2026-11-07T11:00', vehiculo: 'bici' }, { red, cfg });
+
+  assert.deepEqual(pedidos[0].cuerpo.coordinates[0], [origen.lon, origen.lat]);
+  assert.ok(resultado.rutas.every((r) => r.caminataInicial === null && !r.puntosCriticos.some((p) => p.tipo === 'caminata')));
 });

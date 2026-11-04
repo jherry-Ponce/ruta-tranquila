@@ -15,6 +15,7 @@ import { calcularPuntaje } from './puntaje.js';
 import { armarPasos, abreviar, formatoDistancia } from './pasos.js';
 import { evaluarHorario } from './horario.js';
 import { aMetros, distancia, fraccionCompartida } from './geo.js';
+import { snapACiclovia } from './snap-ciclovia.js';
 
 const ALTERNATIVAS = { target_count: 3, weight_factor: 1.6, share_factor: 0.6 };
 const BASE = { extra_info: ['waytype'], instructions: true, language: 'es', units: 'm' };
@@ -86,7 +87,7 @@ function kmEnRuta(ruta, lon, lat) {
   return ruta.analisis.acumulado[mejor] / 1000;
 }
 
-function puntosCriticos(ruta, vehiculo) {
+function puntosCriticos(ruta, vehiculo, snapInicio) {
   const { tramos, cruces, distancia: total } = ruta.analisis;
   // En bici o monopatín, una avenida al salir o al llegar se recorre a pie, empujando, hasta la
   // ciclovía o calle tranquila más cercana: es más seguro que meterse a la avenida.
@@ -134,6 +135,19 @@ function puntosCriticos(ruta, vehiculo) {
       });
     }
   }
+
+  // Aviso de caminata al inicio cuando el snap mueve el origen a la ciclovía.
+  if (snapInicio) {
+    lista.unshift({
+      tipo: 'caminata',
+      clase: 'caminata',
+      titulo: `Camina ${formatoDistancia(snapInicio.distanciaCaminata)} hasta la ciclovía${snapInicio.nombre ? ` (${abreviar(snapInicio.nombre)})` : ''}`,
+      detalle: `Sales junto a una avenida: antes de montar, ve a pie por la vereda (unos ${snapInicio.minutosCaminata} min) hasta la entrada de la ciclovía. La ruta comienza ahí.`,
+      lon: snapInicio.origenLon,
+      lat: snapInicio.origenLat,
+      km: 0,
+    });
+  }
   return lista.sort((a, b) => a.km - b.km).map((p) => ({ ...p, metros: Math.round(p.km * 1000), km: Math.round(p.km * 10) / 10 }));
 }
 
@@ -162,9 +176,23 @@ function resumen(ruta, nota) {
 }
 
 export async function planificar({ origen, destino, salida, depurar, vehiculo = 'auto', nivel = 'principiante' }, { red, cfg }) {
+  // En modo bici, si la salida está sobre una avenida, se ajusta el origen a una ciclovía cercana. No se ajusta el destino:
+  // la ciclovía geométricamente más cercana puede ser una vía costera o aislada y obligar a ORS
+  // a dar una vuelta larga para entrar en ella. ORS debe calcular el último tramo al destino real.
+  let origenRuta = origen;
+  let destinoRuta = destino;
+  let snapInicio = null;
+  if (vehiculo === 'bici') {
+    const sO = snapACiclovia(origen, red, destino);
+    if (sO) {
+      snapInicio = { ...sO, origenLon: origen.lon, origenLat: origen.lat };
+      origenRuta = { lon: sO.lon, lat: sO.lat };
+    }
+  }
+
   const extremos = [
-    [origen.lon, origen.lat],
-    [destino.lon, destino.lat],
+    [origenRuta.lon, origenRuta.lat],
+    [destinoRuta.lon, destinoRuta.lat],
   ];
   const cuerpo = { ...BASE, coordinates: extremos };
   const horario = evaluarHorario(salida, cfg);
@@ -205,7 +233,7 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
 
   for (const ruta of candidatas) {
     ruta.analisis = analizarRuta(ruta.coordenadas, ruta.waytype, red);
-    ruta.puntaje = calcularPuntaje(ruta.analisis, null, cfg);
+    ruta.puntaje = calcularPuntaje(ruta.analisis, null, cfg, vehiculo);
   }
 
   const masRapida = candidatas.reduce((m, r) => (r.duracion < m.duracion ? r : m));
@@ -246,7 +274,7 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
     } else {
       seleccion.forEach((r, i) => {
         r.trafico = mediciones[i];
-        r.puntaje = calcularPuntaje(r.analisis, r.trafico, cfg);
+        r.puntaje = calcularPuntaje(r.analisis, r.trafico, cfg, vehiculo);
       });
     }
   }
@@ -278,7 +306,18 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
         ? { confiable: r.trafico.confiable, duracionSegundos: r.trafico.duracionSegundos, retrasoSegundos: r.trafico.retrasoSegundos }
         : null,
       puntaje: r.puntaje,
-      puntosCriticos: puntosCriticos(r, vehiculo),
+      puntosCriticos: puntosCriticos(r, vehiculo, snapInicio),
+      // Tramo a pie desde la salida real hasta la entrada a la ciclovía, para dibujarlo en el mapa.
+      caminataInicial: snapInicio
+        ? {
+            metros: snapInicio.distanciaCaminata,
+            minutos: snapInicio.minutosCaminata,
+            geometria: [[snapInicio.origenLat, snapInicio.origenLon], [snapInicio.lat, snapInicio.lon]].map(([lat, lon]) => [
+              Number(lat.toFixed(6)),
+              Number(lon.toFixed(6)),
+            ]),
+          }
+        : null,
       pasos: armarPasos(r.pasos, r.coordenadas, r.analisis),
       geometria: r.coordenadas.map(([lon, lat]) => [Number(lat.toFixed(6)), Number(lon.toFixed(6))]),
       enlaceGoogleMaps: enlaceGoogleMaps(r).replace('travelmode=driving', vehiculo === 'bici' ? 'travelmode=bicycling' : 'travelmode=driving'),

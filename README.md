@@ -68,6 +68,7 @@ Con `HOST=0.0.0.0`, cualquier persona conectada a tu Wi-Fi puede usar la app y g
   - **Auto o moto:** usa la red de autos.
   - **Moto eléctrica:** igual que auto o moto, pero nunca por vías rápidas.
   - **Bicicleta o monopatín:** perfil `cycling-regular`, siempre sin recorrer avenidas, porque la R.M. 127-2021-MTC solo permite ciclovías, calles o jirones. Las ciclovías cuentan como lo más tranquilo y las veredas se marcan como "bájate y camina". Para estos vehículos no se mide tráfico.
+    - Si la salida está sobre una avenida (a menos de 45 m de su eje) y hay una ciclovía a menos de 350 m que no aleja del destino, la ruta empieza en la ciclovía: el mapa dibuja el tramo a pie con una línea punteada y la lista avisa "Camina N m hasta la ciclovía". Si se sale de una calle tranquila, se monta ahí mismo. El destino nunca se ajusta, porque la ciclovía más cercana puede no estar bien conectada en la red real.
 - **Nivel:**
   - **Recién aprendo:** evita avenidas grandes y medianas, y acepta hasta 2,5 veces el tiempo de la ruta rápida más 10 minutos.
   - **Ya manejo un poco:** evita solo las avenidas grandes, con un tope de 1,6 veces más 5 minutos.
@@ -119,7 +120,7 @@ Juan de Aliaga 455, Magdalena del Mar → Jr. Santorín 243, Santiago de Surco. 
 | Sin avenidas grandes, `shortest` | 11.0 | 27 | 56 |
 | Sin avenidas grandes ni medianas, `shortest` | 16.1 | 46 | 82 |
 
-El perfil de bicicleta se descartó porque en Lima sigue las ciclovías de las avenidas y, recalculado para auto, terminaba en vías rápidas. Además, podía usar contravías o calles peatonales.
+El perfil `cycling-regular` no se usa para auto, porque al recalcular una ruta de bici como ruta de auto puede terminar en vías rápidas. Para bici o monopatín sí se usa directamente, junto con la clasificación local y el bono de ciclovías.
 
 ### Puntaje de tranquilidad (0 a 100)
 
@@ -134,6 +135,8 @@ Cada tramo de la ruta recibe un peso según el tipo de vía:
 | Troncal o autopista (vía rápida) | Vía Expresa, Panamericana Sur | 0.00 |
 
 **Puntaje = 100 × promedio de pesos según los metros recorridos − penalización por cruces − penalización por tráfico**
+
+Para **bici o monopatín**, las ciclovías además reciben un bono de seguridad de 1,5 puntos por cada 1% del recorrido que transcurre sobre ellas, hasta un máximo de 15 puntos. Así una ruta que aprovecha una red de ciclovías protegidas no queda por debajo de otra que solo evita avenidas usando calles de barrio.
 
 - **Cruces a nivel:** −8 con una vía rápida, −5 con una avenida grande y −2 con una mediana. Se cuentan por cada 5 km de recorrido, porque un viaje largo por Lima cruza muchas avenidas por fuerza, y el máximo es −30. Los pasos a desnivel, como puentes y túneles, no restan.
 - **Tráfico de TomTom:** −2, −4 u −8 por cada tramo con tráfico leve, moderado o fuerte, hasta un máximo de −20.
@@ -179,6 +182,21 @@ Si la salida cae de lunes a viernes entre las 7:00 y las 9:30 o entre las 17:00 
 - **Ciclovías:** la ruta se calcula para vehículos, pero puede pasar junto a ciclovías. Las motos y scooters que superan la velocidad permitida en ellas no deben usarlas.
 - **Google Maps:** el botón pasa como máximo 3 puntos de paso, así que Google puede cambiar parte del recorrido.
 - **Datos de OpenStreetMap:** el uso de las imágenes del mapa de openstreetmap.org está pensado para pruebas y poco tráfico. Para publicar la app hay que usar otro proveedor de mapas.
+
+## Publicar (Vercel)
+
+Está publicada en Vercel (proyecto `ruta-tranquila`, equipo `jherryponces-projects`). Para publicar desde
+cualquier máquina basta con hacer `git push` a `main`: el workflow [.github/workflows/desplegar.yml](.github/workflows/desplegar.yml)
+corre `npm test` y, si pasan, despliega en producción. También se puede volver a publicar desde la pestaña
+**Actions → Desplegar en Vercel → Run workflow**.
+
+Configuración única:
+
+1. Con la cuenta dueña del equipo `jherryponces-projects`, crear un token en https://vercel.com/account/tokens
+   (alcance: ese equipo).
+2. En GitHub, **Settings → Secrets and variables → Actions → New repository secret**: nombre `VERCEL_TOKEN`, valor el token.
+
+Las keys de ORS y TomTom siguen en las variables de entorno del proyecto en Vercel; no van en el repositorio.
 
 ## Tests
 

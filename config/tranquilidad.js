@@ -14,6 +14,14 @@ export default {
     vereda: 0.3, // veredas, parques o caminos: hay que bajarse y caminar
   },
 
+  // Solo para bicicleta o monopatín: una ciclovía protegida aporta seguridad adicional
+  // que no se refleja al tratarla igual que una calle residencial. El tope impide que
+  // unos pocos kilómetros de ciclovía oculten cruces o avenidas peligrosas del resto.
+  bonoCiclovia: {
+    puntosPorPorcentaje: 1.5,
+    maximo: 15,
+  },
+
   // Puntos que se restan por cada cruce a nivel con una vía principal, contados por cada
   // kmReferenciaCruces km de recorrido (en rutas más cortas no se agrandan).
   penalizacionCruce: {

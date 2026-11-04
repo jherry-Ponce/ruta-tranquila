@@ -44,11 +44,19 @@ function frasesCruces(cruces) {
   return partes.length ? `Cruzas ${enumerar(partes)}.` : 'No cruzas avenidas grandes ni medianas.';
 }
 
-export function calcularPuntaje(analisis, trafico, cfg) {
+export function calcularPuntaje(analisis, trafico, cfg, vehiculo = 'auto') {
   const total = analisis.distancia || 1;
   let base = 0;
   for (const [clase, metros] of Object.entries(analisis.metrosPorClase)) base += (cfg.pesos[clase] ?? 0) * metros;
   base = (100 * base) / total;
+
+  // En bici o monopatín, una ciclovía separada de los autos es más segura que una calle
+  // residencial. Se premia de forma explícita y acotada para que los cruces sigan pesando.
+  const porcentajeCiclovia = (100 * (analisis.metrosPorClase.ciclovia ?? 0)) / total;
+  const bonoCiclovia =
+    vehiculo === 'bici'
+      ? Math.min(cfg.bonoCiclovia.maximo, Math.round(porcentajeCiclovia * cfg.bonoCiclovia.puntosPorPorcentaje))
+      : 0;
 
   // Los cruces se cuentan por cada `kmReferenciaCruces` km: un viaje largo cruza más avenidas por fuerza,
   // y así el puntaje compara qué tan seguido aparecen, no solo cuántos son.
@@ -63,7 +71,7 @@ export function calcularPuntaje(analisis, trafico, cfg) {
     tramosTrafico.reduce((s, t) => s + (cfg.penalizacionTrafico[t.gravedad] ?? 0), 0),
   );
 
-  const valor = Math.max(0, Math.min(100, Math.round(base - penalCruces - penalTrafico)));
+  const valor = Math.max(0, Math.min(100, Math.round(base + bonoCiclovia - penalCruces - penalTrafico)));
   const etiqueta = cfg.etiquetas.find((e) => valor >= e.desde)?.texto ?? '';
   const pct = porcentajes(analisis.metrosPorClase, total);
 
@@ -73,12 +81,15 @@ export function calcularPuntaje(analisis, trafico, cfg) {
     const n = tramosTrafico.length;
     explicacion += ` Ahora hay tráfico en ${n} ${n === 1 ? 'tramo' : 'tramos'} (−${penalTrafico}).`;
   }
+  if (bonoCiclovia > 0) {
+    explicacion += ` Para bici o monopatín, el uso de ciclovías protegidas suma +${bonoCiclovia} puntos.`;
+  }
 
   return {
     valor,
     etiqueta,
     explicacion,
     porcentajes: pct,
-    desglose: { base: Math.round(base), cruces: -penalCruces, trafico: -penalTrafico },
+    desglose: { base: Math.round(base), ciclovias: bonoCiclovia, cruces: -penalCruces, trafico: -penalTrafico },
   };
 }

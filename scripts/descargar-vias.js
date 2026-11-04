@@ -18,6 +18,7 @@ const CLASES = {
   trunk: 'autopista',
   primary: 'primaria',
   secondary: 'secundaria',
+  cycleway: 'ciclovia',
 };
 
 const { sur, oeste, norte, este } = config.limitesLima;
@@ -27,6 +28,7 @@ const menores = '^(tertiary|tertiary_link|unclassified|residential|service|livin
 const consulta = `[out:json][timeout:240];
 (
   way["highway"~"^(motorway|trunk|primary|secondary)(_link)?$"](${bbox});
+  way["highway"="cycleway"](${bbox});
   way["highway"~"${menores}"]["bridge"]["bridge"!="no"](${bbox});
   way["highway"~"${menores}"]["tunnel"]["tunnel"!="no"](${bbox});
 );
@@ -49,6 +51,9 @@ function convertir(elemento) {
   };
   if (tags.highway.endsWith('_link')) via.r = 1;
   if (esDesnivel(tags)) via.d = 1;
+  // Las ciclovías que forman parte de una calzada principal se marcan como ramal para
+  // no confundirlas con ciclovías independientes al hacer el snap.
+  if (base === 'cycleway' && (tags.cycleway || tags['cycleway:right'] || tags['cycleway:left'])) via.r = 1;
   return via;
 }
 

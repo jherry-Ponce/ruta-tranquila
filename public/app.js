@@ -14,8 +14,9 @@ const NOMBRE_CLASE = {
   autopista: 'vías rápidas',
   ciclovia: 'ciclovías',
   vereda: 'veredas o parques (a pie)',
+  caminata: 'tramo a pie',
 };
-const TIPOS_ALERTA = new Set(['cruce', 'tramo', 'trafico']);
+const TIPOS_ALERTA = new Set(['cruce', 'tramo', 'trafico', 'caminata']);
 
 const $ = (id) => document.getElementById(id);
 const valorDe = (nombre) => document.querySelector(`input[name="${nombre}"]:checked`).value;
@@ -79,9 +80,17 @@ const iconoMarca = (cual) =>
     iconAnchor: [15, 36],
   });
 
-const svgAlerta = (tipo) =>
-  `<svg class="icono-alerta tipo-${TIPOS_ALERTA.has(tipo) ? tipo : 'cruce'}" viewBox="0 0 24 24" aria-hidden="true">` +
-  '<path d="M12 2.5 1.5 21h21z"/><rect x="11" y="8.5" width="2" height="7" rx="1"/><circle cx="12" cy="18.2" r="1.2"/></svg>';
+const svgAlerta = (tipo) => {
+  if (tipo === 'caminata') {
+    // Ícono de persona caminando
+    return `<svg class="icono-alerta tipo-caminata" viewBox="0 0 24 24" aria-hidden="true">` +
+      '<circle cx="12" cy="4" r="2"/>' +
+      '<path d="M10 7.5 7 22h2l1.5-6L13 19l.5 3H15.5l-1-7 2-3.5V22h2V10.5l-3-1-1-2z"/>' +
+      '</svg>';
+  }
+  return `<svg class="icono-alerta tipo-${TIPOS_ALERTA.has(tipo) ? tipo : 'cruce'}" viewBox="0 0 24 24" aria-hidden="true">` +
+    '<path d="M12 2.5 1.5 21h21z"/><rect x="11" y="8.5" width="2" height="7" rx="1"/><circle cx="12" cy="18.2" r="1.2"/></svg>';
+};
 
 const iconoAlerta = (tipo) =>
   L.divIcon({ className: 'contenedor-alerta', html: svgAlerta(tipo), iconSize: [26, 26], iconAnchor: [13, 15] });
@@ -268,6 +277,12 @@ function seleccionar(i, ajustar = false) {
     tarjeta.setAttribute('aria-current', k === i ? 'true' : 'false');
   });
   capaAlertas.clearLayers();
+  // Tramo a pie hasta la ciclovía: línea punteada desde la salida real hasta donde empieza la ruta.
+  const caminata = rutas[i].caminataInicial;
+  if (caminata) {
+    L.polyline(caminata.geometria, { color: '#0e7490', weight: 4, opacity: 0.9, dashArray: '2 8', lineCap: 'round', interactive: false })
+      .addTo(capaAlertas);
+  }
   alertas = rutas[i].puntosCriticos.map((p) =>
     L.marker([p.lat, p.lon], { icon: iconoAlerta(p.tipo), title: p.titulo, keyboard: false })
       .bindPopup(el('div', {}, el('strong', {}, p.titulo), el('br'), p.detalle))

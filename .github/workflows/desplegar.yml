@@ -1,0 +1,44 @@
+# Cada push a main corre las pruebas y, si pasan, publica en Vercel (producción).
+# Así se puede desplegar desde cualquier máquina con solo hacer `git push`, sin el CLI de Vercel.
+#
+# Requisito único: el secreto VERCEL_TOKEN en GitHub (Settings → Secrets and variables → Actions),
+# creado en https://vercel.com/account/tokens con la cuenta dueña del equipo jherryponces-projects.
+name: Desplegar en Vercel
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # botón "Run workflow" para volver a publicar sin cambios
+
+concurrency:
+  group: produccion
+  cancel-in-progress: false
+
+env:
+  VERCEL_ORG_ID: team_FuoukNgocaVUNQHRSUooNU6f
+  VERCEL_PROJECT_ID: prj_ITWPSgEwMA3x8WACOcGodjyEzsn3
+
+jobs:
+  desplegar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Pruebas
+        run: npm test
+
+      - name: Publicar en Vercel
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::Falta el secreto VERCEL_TOKEN en GitHub (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+          url=$(npx --yes vercel@41.1.0 deploy --prod --yes --token="$VERCEL_TOKEN")
+          echo "Publicado: $url"
+          echo "### Publicado en $url" >> "$GITHUB_STEP_SUMMARY"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

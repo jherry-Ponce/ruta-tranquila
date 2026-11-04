@@ -22,12 +22,21 @@ export function cargarRed(archivo = ARCHIVO_VIAS) {
     puntos: v.g.slice(0, MAX_NODOS).map(aMetros),
   }));
   const indice = new IndiceSegmentos(150);
+  const indiceCiclovias = new IndiceSegmentos(150);
   vias.forEach((via, i) => {
-    for (let j = 0; j < via.puntos.length - 1; j++) indice.agregar(via.puntos[j], via.puntos[j + 1], i * MAX_NODOS + j);
+    for (let j = 0; j < via.puntos.length - 1; j++) {
+      const id = i * MAX_NODOS + j;
+      if (via.clase === 'ciclovia' && !via.ramal) {
+        indiceCiclovias.agregar(via.puntos[j], via.puntos[j + 1], id);
+      } else if (via.clase !== 'ciclovia') {
+        indice.agregar(via.puntos[j], via.puntos[j + 1], id);
+      }
+    }
   });
   return {
     vias,
     indice,
+    indiceCiclovias,
     info: { generado: datos.generado, datosOsm: datos.datosOsm, total: vias.length },
   };
 }

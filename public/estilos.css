@@ -599,6 +599,15 @@ summary {
 .icono-alerta.tipo-trafico {
   --c: var(--alternativa);
 }
+.icono-alerta.tipo-caminata {
+  --c: #0e7490;
+}
+.icono-alerta.tipo-caminata path,
+.icono-alerta.tipo-caminata circle {
+  fill: var(--c);
+  stroke: #fff;
+  stroke-width: 0.8;
+}
 
 .puntaje {
   align-content: center;
