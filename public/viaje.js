@@ -95,7 +95,8 @@ export function iniciarViaje(ruta, { mapa, el, ensayo, alRecalcular }) {
     enlaceGoogle.href = enlaceSeguirEnGoogle(ruta.geometria, acumulado, recorrido, modoGoogle);
     terminar(true);
   });
-  const botonBolsillo = el('button', { type: 'button', class: 'boton-secundario', hidden: ensayo, onclick: () => activarBolsillo() }, 'Modo bolsillo');
+  // También en el ensayo, para probarlo en casa antes de salir.
+  const botonBolsillo = el('button', { type: 'button', class: 'boton-secundario', onclick: () => activarBolsillo() }, 'Modo bolsillo');
   caja.replaceChildren(
     el(
       'p',
