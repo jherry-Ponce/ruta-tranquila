@@ -5,8 +5,13 @@ Si tomas una decisión de diseño que el código no explica por sí solo, agrég
 
 ## Qué es
 
-Ruta Tranquila: app web que busca rutas por calles tranquilas en Lima para quien está aprendiendo a manejar
-(auto, moto eléctrica) o va en bici/monopatín. Producción: https://ruta-tranquila.vercel.app
+**Voy Tranqui** (antes "Ruta Tranquila"): app que busca rutas por calles tranquilas en Lima para quien está
+aprendiendo a manejar (auto, moto eléctrica) o va en bici/monopatín. Producción web: https://ruta-tranquila.vercel.app
+
+- Marca comercial elegida por el usuario el 2026-11-03: **Voy Tranqui** (lema: "Maneja con confianza por Lima").
+  El repo y el dominio de Vercel siguen con el nombre viejo; la web todavía muestra "Ruta Tranquila".
+- App Android en `android-app/` (Capacitor, id `pe.voytranqui.app`): carga la web de Vercel y agrega GPS y voz
+  nativos para guiar con la pantalla apagada. Ver `android-app/README.md`.
 
 ## Comandos
 
@@ -34,6 +39,8 @@ Ruta Tranquila: app web que busca rutas por calles tranquilas en Lima para quien
 - Tráfico TomTom: se mide en todas las rutas elegidas o en ninguna. La licencia gratuita de TomTom no permite la guía en tiempo real: el modo viaje no usa TomTom.
 - No usar Google Routes API (términos 19.2). Google Maps solo mediante enlaces (Maps URLs).
 - Bici: `bonoCiclovia` en `config/tranquilidad.js`. Se ajusta el **origen** a una ciclovía solo si se sale por una avenida (`server/snap-ciclovia.js`); el **destino** nunca, porque producía rodeos largos.
+- App Android: Capacitor y no Flutter ni Kotlin, para no reescribir la app; carga la web remota para que cada push
+  llegue sin reinstalar. GitHub Actions arma y firma el APK (`.github/workflows/apk.yml`); la llave nunca va al repo.
 - Modo viaje (`public/viaje.js`): la guía es por voz porque el novato no va con el celular en la mano. Un navegador no recibe GPS con la pantalla apagada; por eso hay modo bolsillo (pantalla negra encendida con Wake Lock), retomar al volver y "Seguir con Google Maps". La solución completa en segundo plano requeriría una app nativa.
 
 - Tiempo total: incluye la caminata inicial a la ciclovía. Se conserva la duración del recorrido y se entrega `duracionTotalSegundos` por separado; la caminata sigue siendo una estimación en línea recta, no una ruta peatonal.
@@ -42,4 +49,5 @@ Ruta Tranquila: app web que busca rutas por calles tranquilas en Lima para quien
 
 ## Ideas abiertas
 
-- App nativa o TWA con ubicación en segundo plano para guiar con la pantalla apagada.
+- Cambiar los textos visibles de la web de "Ruta Tranquila" a "Voy Tranqui" (pendiente de aprobar).
+- Publicar en Play Store (USD 25) cuando se quiera comercializar: misma llave de firma y mismo id.
