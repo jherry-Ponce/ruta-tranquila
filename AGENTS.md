@@ -136,3 +136,10 @@ aprendiendo a manejar (auto, moto eléctrica) o va en bici/monopatín. Producci�
 ## Ideas abiertas
 
 - Publicar en Play Store (USD 25) cuando se quiera comercializar: misma llave de firma y mismo id.
+
+## Origen mediante ubicación actual (2026-11-04)
+
+- Botón visible Mi ubicación actual junto a Desde; el de práctica reutiliza el mismo controlador en public/app.js. Solo solicita ubicación al tocarlo, coloca A, muestra precisión y deja el punto arrastrable; pasa el foco a Hasta fuera de práctica. No hace geocodificación inversa ni guarda la lectura como favorito.
+- public/ubicacion.js hace una lectura reciente con alta precisión en web (HTTPS/localhost, maximumAge=0, plazo 15 s). En Android usa el puente existente BackgroundGeolocation de primer plano, sin backgroundMessage, y retira el watcher al obtener respuesta, fallar o vencer el plazo. No modifica la guía de public/viaje.js ni agrega dependencias.
+- Durante la lectura ambos botones quedan desactivados. Cambiar o arrastrar el origen invalida una respuesta pendiente; un fallo conserva el origen anterior. Si la precisión supera 100 m se pide revisar A. La caché PWA incluye el módulo nuevo.
+- test/ubicacion.test.js prueba web, permisos, tiempo agotado, limpieza nativa y controlador de interfaz con GPS simulado. La prueba física de GPS/permisos en un teléfono sigue siendo necesaria antes de afirmar validación en hardware.

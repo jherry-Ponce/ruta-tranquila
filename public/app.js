@@ -1,3 +1,4 @@
+import { obtenerUbicacion } from './ubicacion.js';
 // Interfaz de Voy Tranqui: formulario, mapa (Leaflet + OpenStreetMap) y resultados.
 // Los textos que vienen del servidor se insertan siempre con textContent, nunca como HTML.
 
@@ -344,7 +345,11 @@ function mostrarInfo(cual, opciones = []) {
   }
 }
 
+let versionOrigen = 0;
+$('origen').addEventListener('input', () => { versionOrigen++; });
+
 function ponerPunto(cual, lat, lon, datos = {}) {
+  if (cual === 'origen') versionOrigen++;
   let marcador = puntos[cual]?.marcador;
   if (marcador) {
     marcador.setLatLng([lat, lon]);
@@ -1510,21 +1515,42 @@ function registrarPractica(nivel, valoracion) {
   return el('p', { class: 'aviso aviso-info' }, texto);
 }
 
-$('practica-ubicacion').addEventListener('click', () => {
-  if (!('geolocation' in navigator)) return mostrarMensajes(el('p', { class: 'aviso aviso-error' }, 'Este navegador no puede darme tu ubicación.'));
-  mostrarMensajes(el('p', { class: 'cargando' }, 'Buscando tu ubicación…'));
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      $('origen').value = 'Tu ubicación';
-      ponerPunto('origen', pos.coords.latitude, pos.coords.longitude, { etiqueta: 'Tu ubicación', texto: 'Tu ubicación' });
-      mapa.setView([pos.coords.latitude, pos.coords.longitude], 15);
-      mostrarMensajes();
-    },
-    (error) =>
-      mostrarMensajes(el('p', { class: 'aviso aviso-error' }, error.code === 1 ? 'Activa el permiso de ubicación para usar tu posición.' : 'No pude obtener tu ubicación.')),
-    { enableHighAccuracy: true, timeout: 15000 },
-  );
-});
+let buscandoUbicacion = false;
+async function usarUbicacionActual(enPractica = false) {
+  if (buscandoUbicacion) return;
+  buscandoUbicacion = true;
+  const revision = versionOrigen;
+  const botones = [$('origen-ubicacion'), $('practica-ubicacion')];
+  const textos = botones.map((b) => b.textContent);
+  botones.forEach((b) => { b.disabled = true; b.setAttribute('aria-busy', 'true'); b.textContent = 'Buscando ubicación…'; });
+  mostrarMensajes(el('p', { class: 'cargando' }, 'Buscando tu ubicación… Si te lo pide, permite el acceso.'));
+  try {
+    const pos = await obtenerUbicacion();
+    // Si eligió otro origen mientras esperaba, no se pisa su elección.
+    if (revision !== versionOrigen) { mostrarMensajes(); return; }
+    terminarModoMapa();
+    terminarModoEvitar();
+    $('origen-sugerencias').hidden = true;
+    const texto = 'Mi ubicación actual';
+    $('origen').value = texto;
+    ponerPunto('origen', pos.lat, pos.lon, {
+      texto, exacto: false,
+      etiqueta: texto + (pos.precision !== null ? ' (precisión aproximada: ±' + pos.precision + ' m)' : ''),
+    });
+    mapa.setView([pos.lat, pos.lon], 16);
+    if (pos.precision !== null && pos.precision > 100) {
+      mostrarMensajes(el('p', { class: 'aviso aviso-info' }, 'La ubicación tiene poca precisión. Revisa el punto A y arrástralo si hace falta.'));
+    } else mostrarMensajes();
+    if (!enPractica) $('destino').focus();
+  } catch (error) {
+    if (revision === versionOrigen) mostrarMensajes(el('p', { class: 'aviso aviso-error' }, error.message));
+  } finally {
+    buscandoUbicacion = false;
+    botones.forEach((b, i) => { b.disabled = false; b.removeAttribute('aria-busy'); b.textContent = textos[i]; });
+  }
+}
+$('origen-ubicacion').addEventListener('click', () => usarUbicacionActual());
+$('practica-ubicacion').addEventListener('click', () => usarUbicacionActual(true));
 
 $('practica-armar').addEventListener('click', async () => {
   const boton = $('practica-armar');

@@ -1568,3 +1568,6 @@ body.mapa-completo .mapa {
   color: #e3ece9;
   border-color: #4b5f5a;
 }
+
+.boton-ubicacion { margin-top: 8px; width: 100%; }
+.boton-ubicacion:disabled { cursor: wait; opacity: 0.7; }

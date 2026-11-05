@@ -296,3 +296,7 @@ La réplica global disponible tiene base de julio de 2026; se conservaron las av
 ## Buscar lugares por nombre
 
 En Desde y Hasta puedes escribir nombres como Plaza San Miguel u Hospital Rebagliati, además de calles con número y enlaces de Google Maps. Las sugerencias muestran el nombre del lugar, su dirección y distrito. Si hay varias sedes, elige la correspondiente. La disponibilidad depende del catálogo del proveedor y un punto de establecimiento no garantiza la puerta de acceso exacta.
+
+## Salir desde donde estás
+
+Toca **📍 Mi ubicación actual** debajo de Desde y permite el acceso cuando te lo pida. La app marca tu posición como punto A, centra el mapa y te deja escribir el destino sin conocer el nombre de la calle. Revisa la precisión indicada; puedes arrastrar A para corregirlo. Si falla el GPS o deniegas el permiso, se conserva el origen que ya tenías y puedes volver a intentarlo. En navegador requiere HTTPS o localhost. El botón solo toma una lectura; no inicia la guía del viaje.
