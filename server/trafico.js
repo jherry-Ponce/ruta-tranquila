@@ -107,6 +107,10 @@ const MAGNITUD_MINIMA = 2; // moderado o fuerte: un tráfico leve no justifica d
 const MARGEN_ZONA = 1500; // m alrededor del trayecto donde se buscan incidentes
 const JUNTO_A_EXTREMO = 150; // m: un atasco pegado a la salida o la llegada no se puede esquivar
 const MEDIO_ANCHO_INCIDENTE = 6; // m a cada lado del trazo
+const VIGENCIA_CACHE = 3 * 60_000;
+const cacheIncidentes = new Map();
+// Para las pruebas: cada una parte sin incidentes guardados.
+export const olvidarIncidentes = () => cacheIncidentes.clear();
 
 const distanciaAlSegmento = (p, a, b) => {
   const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
@@ -128,10 +132,19 @@ export async function incidentesDeLaZona(extremos, { bici = false } = {}) {
     fields: campos,
     timeValidityFilter: 'present',
   });
+  // Para no gastar el plan gratis: la misma zona (redondeada a ~1 km) se reutiliza durante 3 minutos,
+  // por ejemplo al buscar otra vez, cambiar de vehículo o recalcular en el viaje.
+  const clave = [...minimo, ...maximo].map((v) => v.toFixed(2)).join(',');
+  const guardado = cacheIncidentes.get(clave);
+  let incidents = guardado && Date.now() - guardado.hora < VIGENCIA_CACHE ? guardado.incidents : null;
   try {
-    const respuesta = await fetch(`https://api.tomtom.com/traffic/services/5/incidentDetails?${q}`, { signal: AbortSignal.timeout(4_000) });
-    if (!respuesta.ok) return [];
-    const { incidents = [] } = await respuesta.json();
+    if (!incidents) {
+      const respuesta = await fetch(`https://api.tomtom.com/traffic/services/5/incidentDetails?${q}`, { signal: AbortSignal.timeout(4_000) });
+      if (!respuesta.ok) return [];
+      ({ incidents = [] } = await respuesta.json());
+      if (cacheIncidentes.size >= 50) cacheIncidentes.delete(cacheIncidentes.keys().next().value);
+      cacheIncidentes.set(clave, { hora: Date.now(), incidents });
+    }
     return incidents
       .filter(({ properties: p }) => p.iconCategory === CIERRE || (!bici && p.iconCategory === ATASCO && p.magnitudeOfDelay >= MAGNITUD_MINIMA))
       .map(({ geometry, properties }) => ({

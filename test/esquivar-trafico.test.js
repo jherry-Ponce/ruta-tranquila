@@ -1,10 +1,10 @@
-import { test, before, after } from 'node:test';
+import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import cfg from '../config/tranquilidad.js';
 import { cargarRed } from '../server/vias.js';
 import { aMetros } from '../server/geo.js';
 import { planificar } from '../server/planificador.js';
-import { zonasDeIncidentes } from '../server/trafico.js';
+import { zonasDeIncidentes, olvidarIncidentes } from '../server/trafico.js';
 
 const red = cargarRed();
 const origen = { lat: -12.14, lon: -77.07 };
@@ -48,6 +48,8 @@ before(() => {
     return new Response(JSON.stringify({ type: 'FeatureCollection', features: [feature()] }), { status: 200 });
   };
 });
+
+beforeEach(() => olvidarIncidentes());
 
 after(() => {
   globalThis.fetch = fetchOriginal;

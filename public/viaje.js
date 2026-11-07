@@ -11,6 +11,12 @@ const AVISO_LEJOS = 200; // m antes de una maniobra
 const AVISO_AHORA = 35;
 const AVISO_CRITICO = 150;
 const FUERA_DE_RUTA = 40; // m de distancia a la ruta
+// Atasco detectado con el propio GPS (gratis, sin consultar servicios): casi detenido mucho rato sobre la ruta.
+const ATASCO_METROS = 60; // avanzar menos que esto...
+const ATASCO_SEGUNDOS = 120; // ...durante este tiempo
+const ATASCO_SEGUNDOS_CRUCE = 180; // junto a un cruce puede ser un semáforo largo
+const ATASCO_ENTRE_BUSQUEDAS = 5 * 60_000;
+const ATASCO_MAXIMO = 2; // por viaje: no insistir si no hay salida mejor
 const PASO_ENSAYO = 40; // m por segundo en el ensayo
 
 // Las abreviaturas se leen mal en voz alta.
@@ -132,6 +138,10 @@ export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTe
   let ultimaUbicacion = null;
   let huboPausa = false;
   let rutaCambiada = false;
+  // Último avance real sobre la ruta, para notar si llevas mucho rato casi detenido.
+  let avance = null;
+  let ultimoAtasco = 0;
+  let atascosDetectados = 0;
   const marcador = L.circleMarker(rutaInicial.geometria[0], { radius: 9, color: '#fff', weight: 3, fillColor: '#2563eb', fillOpacity: 1 }).addTo(mapa);
 
   const caja = document.getElementById('viaje');
@@ -212,6 +222,7 @@ export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTe
     fueraDesde = null;
     botonRecalcular.hidden = true;
     recorrido = Math.max(recorrido, s);
+    if (!avance || recorrido - avance.metros >= ATASCO_METROS) avance = { hora: ahora, metros: recorrido };
     if (!inicioMovimiento && recorrido > 30) {
       inicioMovimiento = ahora;
       recorridoInicio = recorrido;
@@ -283,6 +294,52 @@ export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTe
       if (terminado) return;
       hablar('No pude buscar otra ruta. Cuando puedas, estaciónate en un lugar seguro y revisa el mapa.', true);
       mostrarFueraDeRuta();
+    } finally {
+      recalculando = false;
+    }
+  }
+
+  // ¿Atasco? Si llevas mucho rato casi detenido sobre la ruta, busca por dónde salir sin que toques el
+  // celular. Si no hay un camino mejor, lo dice y sigue con la misma ruta.
+  function revisarAtasco() {
+    if (terminado || ensayo || !alDesviarse || recalculando || !avance || !inicioMovimiento || fueraDesde) return;
+    if (!nativo && document.hidden) return; // en la web, con la pantalla apagada la guía está en pausa
+    if (atascosDetectados >= ATASCO_MAXIMO || Date.now() - ultimoAtasco < ATASCO_ENTRE_BUSQUEDAS) return;
+    if (total - recorrido < 300) return; // llegando: no vale la pena cambiar de camino
+    const junto = criticos.some((c) => c.tipo === 'cruce' && Math.abs(c.metros - recorrido) < 60);
+    if (Date.now() - avance.hora < (junto ? ATASCO_SEGUNDOS_CRUCE : ATASCO_SEGUNDOS) * 1000) return;
+    ultimoAtasco = Date.now();
+    atascosDetectados++;
+    salirDelAtasco();
+  }
+  const relojAtasco = setInterval(revisarAtasco, 15_000);
+
+  // ¿La ruta nueva es la misma que ya llevas? (sus puntos quedan sobre lo que te falta recorrer)
+  function mismaRuta(nueva) {
+    const puntos = nueva.geometria.filter((_, i) => i % 5 === 0).slice(0, 60);
+    const sobre = puntos.filter((p) => proyectarEnRuta(P, acumulado, aXY(p), recorrido, true).d <= 25).length;
+    return sobre >= 0.9 * puntos.length;
+  }
+
+  async function salirDelAtasco() {
+    recalculando = true;
+    hablar('Parece que hay tráfico aquí. Busco por dónde salir; sigue con calma.', true);
+    try {
+      const nueva = await alDesviarse(posicionActual);
+      if (terminado || !nueva) return;
+      if (mismaRuta(nueva)) {
+        hablar('No encontré un camino mejor. Sigue por aquí con paciencia.');
+        return;
+      }
+      cargarRuta(nueva);
+      rutaCambiada = true;
+      avance = null;
+      buscarEnTodo = true;
+      repetirSiguiente = true;
+      fraseRetomar = 'Listo, encontré otra ruta para salir del tráfico.';
+      if (posicionActual) actualizar(posicionActual.lat, posicionActual.lon);
+    } catch {
+      // Sin respuesta: se sigue con la misma ruta.
     } finally {
       recalculando = false;
     }
@@ -412,6 +469,7 @@ export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTe
     pedirBloqueo();
     buscarEnTodo = true;
     repetirSiguiente = true;
+    avance = null; // el tiempo con la pantalla apagada no cuenta como estar detenido
     reiniciarGps();
   };
   document.addEventListener('visibilitychange', alCambiarVisibilidad);
@@ -552,6 +610,7 @@ export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTe
     for (const paso of [
       () => detener(),
       () => document.removeEventListener('visibilitychange', alCambiarVisibilidad),
+      () => clearInterval(relojAtasco),
       () => capaBolsillo && salirBolsillo(),
       () => bloqueo?.release?.().catch(() => {}),
       () => cancelar && callar(),
