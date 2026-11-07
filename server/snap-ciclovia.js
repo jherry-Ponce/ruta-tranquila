@@ -4,9 +4,12 @@
 // Solo se ajusta si:
 // - la salida está junto a una vía principal: si ya está en una calle tranquila, se puede montar
 //   ahí mismo y caminar hasta una ciclovía no aporta nada;
-// - la ciclovía está a distancia caminable y no hace retroceder respecto del destino.
+// - la ciclovía está a distancia caminable y no hace retroceder respecto del destino;
+// - no es la Ciclovía Costa Verde ni hay que cruzar una vía rápida para llegar a ella. Desde Av. La Paz 2551
+//   la más cercana era la Costa Verde (290 m, al pie del acantilado, tras el Circuito de Playas) y la ruta
+//   daba 23,6 km para subir. Si la más cercana no sirve, se prueba la siguiente.
 
-import { aMetros, aGrados, distancia, puntoEnSegmento } from './geo.js';
+import { aMetros, aGrados, distancia, puntoEnSegmento, contacto } from './geo.js';
 import { segmentoDe } from './vias.js';
 
 const MAX_CAMINATA = 350; // m: radio máximo para buscar una ciclovía cercana
@@ -22,11 +25,24 @@ function masCercana(indice, red, p, radio, filtro = () => true) {
   let mejor = null;
   indice.buscar(p[0] - radio, p[1] - radio, p[0] + radio, p[1] + radio, (id) => {
     const { via, a, b } = segmentoDe(red, id);
-    if (!filtro(via)) return;
     const proj = puntoEnSegmento(p, a, b);
-    if (proj.d <= radio && (!mejor || proj.d < mejor.d)) mejor = { ...proj, via };
+    if (proj.d > radio || (mejor && proj.d >= mejor.d) || !filtro(via, [proj.x, proj.y])) return;
+    mejor = { ...proj, via };
   });
   return mejor;
+}
+
+const COSTA_VERDE = /costa verde/i;
+
+// ¿El tramo a pie de p a q cruza una vía rápida a nivel? Los puentes y túneles no cuentan.
+function cruzaViaRapida(red, p, q) {
+  let cruza = false;
+  red.indice.buscar(Math.min(p[0], q[0]) - 5, Math.min(p[1], q[1]) - 5, Math.max(p[0], q[0]) + 5, Math.max(p[1], q[1]) + 5, (id) => {
+    if (cruza) return;
+    const { via, a, b } = segmentoDe(red, id);
+    if (via.clase === 'autopista' && !via.desnivel && contacto(p, q, a, b, 0) !== null) cruza = true;
+  });
+  return cruza;
 }
 
 // ¿El punto (en metros) está sobre una avenida, troncal o vía rápida?
@@ -42,7 +58,7 @@ export function snapACiclovia(punto, red, destino = null) {
   const p = aMetros([punto.lon, punto.lat]);
   if (!sobreAvenida(red, p)) return null;
 
-  const mejor = masCercana(red.indiceCiclovias, red, p, MAX_CAMINATA);
+  const mejor = masCercana(red.indiceCiclovias, red, p, MAX_CAMINATA, (via, q) => !COSTA_VERDE.test(via.nombre ?? '') && !cruzaViaRapida(red, p, q));
   if (!mejor || mejor.d < TOLERANCIA_SOBRE) return null;
 
   if (destino) {

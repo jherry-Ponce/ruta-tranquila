@@ -61,3 +61,19 @@ test('no ajusta si la ciclovía queda en sentido contrario al destino', () => {
   assert.equal(snapACiclovia(origen, red, { lon, lat }), null);
   assert.ok(snapACiclovia(origen, red, { lon, lat: lat - 0.04 }));
 });
+
+test('no lleva a la Ciclovía Costa Verde ni a una ciclovía tras una vía rápida', () => {
+  const costa = redDePrueba();
+  costa.vias[0].nombre = 'Ciclovía Costa Verde';
+  assert.equal(snapACiclovia(sobreLaParalela(costa), costa), null);
+
+  // Una vía rápida entre la avenida y la ciclovía (40 m al norte de la ciclovía).
+  const red = redDePrueba();
+  const rapida = red.vias[0].puntos.map(([x, y]) => [x - 100, y + 40]).map(([x, y], i) => [x + i * 200, y]);
+  red.vias.push({ nombre: 'Circuito de prueba', clase: 'autopista', ramal: false, desnivel: false, puntos: rapida });
+  red.indice.agregar(rapida[0], rapida[1], 2 * 4096);
+  assert.equal(snapACiclovia(sobreLaParalela(red), red), null);
+  // Por un puente o túnel sí se puede pasar.
+  red.vias[2].desnivel = true;
+  assert.ok(snapACiclovia(sobreLaParalela(red), red));
+});
