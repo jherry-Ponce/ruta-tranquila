@@ -56,7 +56,7 @@ aprendiendo a manejar (auto, moto eléctrica) o va en bici/monopatín. Producci�
   Ahora solo se piden en viajes de hasta 7 km en línea recta, en paralelo con la ruta sola y con plazo propio de 12 s; si no llegan, se sigue sin ellas. Práctica y `/api/tramo` no las usan.
 - Plazo de búsqueda: todos los pedidos a ORS comparten 32 s (`PLAZO_BUSQUEDA`), así la búsqueda termina antes de los 60 s de Vercel, tráfico de TomTom incluido.
   Si una variante tarda o falla la red, se descarta y se sigue con las demás; solo cortan la búsqueda la key ausente o inválida y el límite de ORS. La interfaz explica en simple un 502, 503 o 504.
-- Pendiente detectado: en bici desde Av. La Paz 2551, el ajuste del origen salta a la Ciclovía Costa Verde (290 m, al pie del acantilado) y la ruta da 23,6 km. Hay que decidir con el usuario cómo limitar ese ajuste.
+- Bici, ajuste del origen (opción A del usuario, 2026-11-06): nunca a la Ciclovía Costa Verde ni a una ciclovía cuya caminata cruce una vía rápida a nivel (puentes y túneles sí). Si la más cercana no sirve, se prueba la siguiente. Desde Av. La Paz 2551 saltaba a la Costa Verde (290 m, al pie del acantilado) y la ruta a Parque Kennedy daba 23,6 km; ahora da 12,3 km.
 - Sin ruta tranquila: si la mejor queda bajo 40, la tarjeta dice "La menos difícil" y un aviso lo explica; si es por el tráfico de ahora (sin él llegaría a 40), el aviso lo dice así.
 - Moto eléctrica por avenidas rápidas: el usuario va a 40 km/h por la Costanera, por la derecha y junto a otras motos eléctricas, y no quiere que se excluya. No se usa `maxspeed` para quitar vías. El scooter sigue junto con la bici.
 
