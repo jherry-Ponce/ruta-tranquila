@@ -834,7 +834,20 @@ function fraseEstacionamiento() {
   return `Hay ${lugar} a unos ${l.metros} metros${l.nombre ? `: ${l.nombre}` : ''}.`;
 }
 
-function mostrarResultados({ rutas: lista, horario = {}, trafico = {}, estacionamientos: lugares = [] }, { ajustar = true, avisos = true } = {}) {
+// Una sola línea, y solo si hay algo que contar: el mapa no muestra los atascos, la ruta ya los rodea.
+function fraseEsquivados({ atascos = 0, cierres = 0, junto = {} }) {
+  const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+  const partes = [atascos && plural(atascos, 'atasco', 'atascos'), cierres && plural(cierres, 'calle cerrada', 'calles cerradas')].filter(Boolean);
+  const lugar = junto.salida && junto.llegada ? 'tu salida y tu llegada' : junto.salida ? 'tu salida' : 'tu llegada';
+  return [
+    partes.length && `Tu ruta rodea ${partes.join(' y ')} de este momento.`,
+    (junto.salida || junto.llegada) && `Hay tráfico junto a ${lugar}: ve con calma ahí.`,
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+function mostrarResultados({ rutas: lista, horario = {}, trafico = {}, esquivados = null, estacionamientos: lugares = [] }, { ajustar = true, avisos = true } = {}) {
   rutas = lista;
   estacionamientos = lugares;
   const mensajes = [];
@@ -863,6 +876,7 @@ function mostrarResultados({ rutas: lista, horario = {}, trafico = {}, estaciona
     mensajes.push(el('p', { class: 'aviso aviso-info' }, 'La ruta más rápida también es la más tranquila que encontré.'));
   }
   if (avisos && trafico.mensaje) mensajes.push(el('p', { class: 'aviso aviso-info' }, trafico.mensaje));
+  if (avisos && esquivados) mensajes.push(el('p', { class: 'aviso aviso-info' }, fraseEsquivados(esquivados)));
   if (avisos) mostrarMensajes(...mensajes);
 
   const tarjetas = rutas.map(tarjeta);

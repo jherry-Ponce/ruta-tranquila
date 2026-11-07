@@ -92,6 +92,7 @@ Con `HOST=0.0.0.0`, cualquier persona conectada a tu Wi-Fi puede usar la app y g
 - **Tarjeta resumida:** tiempo, batería, puntaje y una línea con los cruces y tramos difíciles; los porcentajes, la explicación, los puntos críticos y los pasos quedan en "Ver detalle".
 - **Dónde estacionar al llegar:** hasta 3 estacionamientos de OpenStreetMap a menos de 400 m del destino (300 m para bici, solo estacionamientos de bicis), marcados con una P en el mapa. Al llegar, la voz dice el más cercano. Si la ruta termina sobre una avenida, la tarjeta avisa que no te detengas en la pista.
 - **De noche:** el mapa y la barra del viaje se oscurecen solos según la hora del sol en Lima. En bici, al empezar el viaje de noche (o al atardecer) la voz recuerda encender las luces.
+- **Sin meterse en el tráfico:** si sales ahora, la ruta rodea los atascos y las calles cerradas de ese momento (TomTom); una línea dice cuántos esquivó.
 - **Recálculo automático:** si te desvías, busca otra ruta tranquila y te avisa por voz, sin tocar el celular.
 - **Avisar:** manda por WhatsApp tu hora de llegada o "Ya llegué".
 - **¿Qué tal estuvo?:** al llegar puedes marcar puntos difíciles; las próximas rutas los evitan.

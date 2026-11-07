@@ -57,6 +57,11 @@ aprendiendo a manejar (auto, moto eléctrica) o va en bici/monopatín. Producci�
 - Plazo de búsqueda: todos los pedidos a ORS comparten 32 s (`PLAZO_BUSQUEDA`), así la búsqueda termina antes de los 60 s de Vercel, tráfico de TomTom incluido.
   Si una variante tarda o falla la red, se descarta y se sigue con las demás; solo cortan la búsqueda la key ausente o inválida y el límite de ORS. La interfaz explica en simple un 502, 503 o 504.
 - Bici, ajuste del origen (opción A del usuario, 2026-11-06): nunca a la Ciclovía Costa Verde ni a una ciclovía cuya caminata cruce una vía rápida a nivel (puentes y túneles sí). Si la más cercana no sirve, se prueba la siguiente. Desde Av. La Paz 2551 saltaba a la Costa Verde (290 m, al pie del acantilado) y la ruta a Parque Kennedy daba 23,6 km; ahora da 12,3 km.
+- Esquivar el tráfico (2026-11-06, pedido del usuario: "no meterse donde haya tráfico"). Solo si se sale "ahora" y hay key de TomTom.
+  Funcionamiento: un pedido a TomTom Traffic Incidents (`incidentesDeLaZona`, plazo 4 s; si falla se sigue sin esto), sobre el rectángulo del trayecto más 1,5 km. Atascos moderados o fuertes (iconCategory 6, magnitud ≥2) y vías cerradas (8) se vuelven rectángulos de 6 m a cada lado del trazo (`zonasDeIncidentes`), que van a `avoid_polygons` en todas las variantes, rápida incluida. En bici solo los cierres.
+  Excepciones: los incidentes a menos de 150 m de la salida o la llegada no se esquivan; se avisan. Si con las zonas no queda ninguna ruta, se busca otra vez sin ellas.
+  Interfaz: una sola línea en los avisos ("Tu ruta rodea 1 atasco y 2 calles cerradas de este momento."), contando solo los que están cerca del trayecto. Por decisión del usuario, el mapa no dibuja los atascos.
+  Medido un viernes a las 11 p. m. en Lima moderna: 33 atascos y 84 vías cerradas en un pedido de 1,9 s.
 - Sin ruta tranquila: si la mejor queda bajo 40, la tarjeta dice "La menos difícil" y un aviso lo explica; si es por el tráfico de ahora (sin él llegaría a 40), el aviso lo dice así.
 - Moto eléctrica por avenidas rápidas: el usuario va a 40 km/h por la Costanera, por la derecha y junto a otras motos eléctricas, y no quiere que se excluya. No se usa `maxspeed` para quitar vías. El scooter sigue junto con la bici.
 

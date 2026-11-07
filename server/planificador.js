@@ -9,7 +9,7 @@
 
 import { pedirRutas, ErrorServicio } from './ors.js';
 import { zonasAEvitar } from './zonas.js';
-import { medirTrafico, hayKeyTomTom } from './trafico.js';
+import { medirTrafico, hayKeyTomTom, incidentesDeLaZona, zonasDeIncidentes } from './trafico.js';
 import { analizarRuta, tramosPorClase, PRINCIPALES } from './analisis.js';
 import { calcularPuntaje } from './puntaje.js';
 import { armarPasos, abreviar, formatoDistancia, avisoCruce } from './pasos.js';
@@ -291,9 +291,10 @@ export function ajustarDuracion(r, vehiculo, ajusteRitmo = 1) {
   r.duracion = duracion * ajusteRitmo;
 }
 
-export async function planificar({ origen, destino, salida, depurar, vehiculo = 'auto', nivel = 'principiante', evitar = [], ajusteRitmo = 1 }, { red, cfg }) {
+export async function planificar(pedido, { red, cfg }) {
+  const { origen, destino, salida, depurar, vehiculo = 'auto', nivel = 'principiante', evitar = [], ajusteRitmo = 1, esquivarTrafico = true } = pedido;
   // Puntos que la persona marcó como difíciles en viajes anteriores: las rutas tranquilas los esquivan.
-  const zonasExtra = zonasDePuntos(evitar, [origen, destino]);
+  let zonasExtra = zonasDePuntos(evitar, [origen, destino]);
   // En modo bici, si la salida está sobre una avenida, se ajusta el origen a una ciclovía cercana. No se ajusta el destino:
   // la ciclovía geométricamente más cercana puede ser una vía costera o aislada y obligar a ORS
   // a dar una vuelta larga para entrar en ella. ORS debe calcular el último tramo al destino real.
@@ -314,6 +315,17 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
   ];
   const cuerpo = { ...BASE, coordinates: extremos };
   const horario = evaluarHorario(salida, cfg);
+  // Saliendo ahora, la ruta no entra en los atascos ni en las calles cerradas de este momento (TomTom).
+  // En bici solo se esquivan los cierres: un atasco de autos no frena a quien va por la ciclovía.
+  let zonasTrafico = [];
+  let esquivados = null;
+  if (esquivarTrafico && horario.cuando === 'ahora' && hayKeyTomTom()) {
+    const incidentes = zonasDeIncidentes(await incidentesDeLaZona(extremos, { bici: vehiculo === 'bici' }), extremos);
+    zonasTrafico = incidentes.zonas;
+    zonasExtra = [...zonasExtra, ...zonasTrafico];
+    const { cerca, junto } = incidentes;
+    if (cerca.atascos || cerca.cierres || junto.salida || junto.llegada) esquivados = { ...cerca, junto };
+  }
   const plazo = Date.now() + PLAZO_BUSQUEDA;
   const alternativas = distancia(aMetros(extremos[0]), aMetros(extremos[1])) <= DISTANCIA_ALTERNATIVAS;
 
@@ -333,7 +345,7 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
     const base = vehiculo === 'motoElectrica' ? new Set(['autopista']) : new Set();
     const rapida = base.size
       ? sinAvenidas(cuerpo, red, extremos, base, 'fastest', 'rapida', 'driving-car', zonasExtra, alternativas, plazo)
-      : conAlternativas('driving-car', cuerpo, 'rapida', plazo)
+      : conAlternativas('driving-car', zonasTrafico.length ? { ...cuerpo, options: { avoid_polygons: { type: 'MultiPolygon', coordinates: zonasTrafico } } } : cuerpo, 'rapida', plazo)
           .then((rutas) => rutas.map((ruta) => ({ ruta })))
           .catch((error) => {
             if (ERRORES_DE_CUENTA.has(error.codigo)) throw error;
@@ -355,6 +367,10 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
     else comparacion.push({ nota: `descartada: ${v.descartada}` });
   }
   if (!candidatas.length) {
+    // Si esquivar los atascos y cierres dejó aislado un punto, se busca otra vez sin esquivarlos.
+    if (zonasTrafico.length && !comparacion.some((c) => /tardando|conectarme/.test(c.nota))) {
+      return planificar({ ...pedido, esquivarTrafico: false }, { red, cfg });
+    }
     // Si todo falló por demora o red, decirlo así: "no hay ruta" sería falso.
     if (comparacion.some((c) => /tardando|conectarme/.test(c.nota))) {
       throw new ErrorServicio('El servicio de rutas está tardando más de lo normal. Intenta otra vez en un momento.', 503, 'tiempo');
@@ -452,6 +468,7 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
     rutas,
     horario,
     trafico,
+    ...(esquivados ? { esquivados } : {}),
     ...(depurar ? { comparacion: [...seleccion.map((r) => resumen(r, 'elegida')), ...comparacion] } : {}),
   };
 }
