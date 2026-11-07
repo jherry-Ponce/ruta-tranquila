@@ -223,6 +223,8 @@ export function iniciarViaje(rutaInicial, { mapa, el, ensayo, alRecalcular, alTe
     botonRecalcular.hidden = true;
     recorrido = Math.max(recorrido, s);
     if (!avance || recorrido - avance.metros >= ATASCO_METROS) avance = { hora: ahora, metros: recorrido };
+    // También con cada lectura del GPS: con la pantalla apagada, Android puede frenar el reloj de la página.
+    else revisarAtasco();
     if (!inicioMovimiento && recorrido > 30) {
       inicioMovimiento = ahora;
       recorridoInicio = recorrido;
