@@ -36,7 +36,12 @@ aprendiendo a manejar (auto, moto eléctrica) o va en bici/monopatín. Producci�
 - Rutas tranquilas con `avoid_polygons` sobre avenidas (`server/zonas.js`); se clasifica la ruta con el archivo local de OSM (`server/analisis.js`) porque el `waytype` de ORS no distingue lo suficiente.
 - `cycling-regular` no se usa para auto: en Lima terminaba en la Vía Expresa. Para bici sí.
 - Geocoding con TomTom primero (Pelias de ORS ubicaba mal los números).
-- Tráfico TomTom: se mide en todas las rutas elegidas o en ninguna. La licencia gratuita de TomTom no permite la guía en tiempo real: el modo viaje no usa TomTom.
+- Tráfico TomTom: se mide en todas las rutas elegidas o en ninguna. El modo viaje no consulta TomTom por su cuenta; solo los recálculos (desvío o atasco) pasan por `/api/rutas`.
+- Licencia y costo de TomTom (revisado el 2026-11-06; el usuario exige que todo sea gratis y piensa comercializar).
+  Según el FAQ oficial, el plan gratis permite uso comercial ("Yes — even as part of the free evaluation"), con atribución. No encontré una prohibición sobre usar sus datos durante el viaje; la nota anterior ("no permite la guía en tiempo real") venía de un artículo de 2018 sobre su kit de navegación. No se pudo leer el texto completo de las condiciones: confirmarlo antes de cobrar.
+  La página de precios actual da cupos gratis mensuales por API: Traffic Incidents 2.500, Places Suggest 10.000, Routing 20.000 y Reverse Geocoding 20.000. Algunas cuentas antiguas tendrían 2.500 al día en total; el plan de la key no aparece en las respuestas, se ve en el panel de TomTom.
+  Sin tarjeta ni saldo prepagado, al pasarse del cupo TomTom responde 429 y no cobra. **No agregar tarjeta ni "Pay As You Grow" sin acuerdo.** `test/limite-gratis.test.js` comprueba que con 429 la app sigue (búsqueda por ORS, rutas sin esquivar ni medir tráfico).
+  Consumo estimado: unas 30 llamadas por persona al día (3 búsquedas). Con el plan mensual alcanza para unas 25 personas al día; las sugerencias son lo primero que se agota.
 - No usar Google Routes API (términos 19.2). Google Maps solo mediante enlaces (Maps URLs).
 - Bici: `bonoCiclovia` en `config/tranquilidad.js`. Se ajusta el **origen** a una ciclovía solo si se sale por una avenida (`server/snap-ciclovia.js`); el **destino** nunca, porque producía rodeos largos.
 - App Android: Capacitor y no Flutter ni Kotlin, para no reescribir la app; carga la web remota para que cada push
@@ -57,6 +62,9 @@ aprendiendo a manejar (auto, moto eléctrica) o va en bici/monopatín. Producci�
 - Plazo de búsqueda: todos los pedidos a ORS comparten 32 s (`PLAZO_BUSQUEDA`), así la búsqueda termina antes de los 60 s de Vercel, tráfico de TomTom incluido.
   Si una variante tarda o falla la red, se descarta y se sigue con las demás; solo cortan la búsqueda la key ausente o inválida y el límite de ORS. La interfaz explica en simple un 502, 503 o 504.
 - Bici, ajuste del origen (opción A del usuario, 2026-11-06): nunca a la Ciclovía Costa Verde ni a una ciclovía cuya caminata cruce una vía rápida a nivel (puentes y túneles sí). Si la más cercana no sirve, se prueba la siguiente. Desde Av. La Paz 2551 saltaba a la Costa Verde (290 m, al pie del acantilado) y la ruta a Parque Kennedy daba 23,6 km; ahora da 12,3 km.
+- Atascos durante el viaje, sin costo (opción B, 2026-11-06). La opción A (consultar TomTom cada 3 min) se descartó porque gasta el cupo mensual de atascos con pocos usuarios.
+  Detección (`revisarAtasco` en `public/viaje.js`): si sobre la ruta se avanza menos de 60 m en 2 minutos (3 junto a un cruce crítico), se llama `alDesviarse`; la búsqueda nueva ya esquiva los atascos conocidos. Si la ruta nueva es la misma (`mismaRuta`), lo dice y sigue igual.
+  Límites: máximo 2 veces por viaje y una cada 5 minutos. No se activa llegando (menos de 300 m), en el ensayo ni con la pantalla apagada en la web, y al volver a encenderla se reinicia la medición. Los atascos de una zona se guardan 3 minutos en el servidor para gastar menos cupo.
 - Esquivar el tráfico (2026-11-06, pedido del usuario: "no meterse donde haya tráfico"). Solo si se sale "ahora" y hay key de TomTom.
   Funcionamiento: un pedido a TomTom Traffic Incidents (`incidentesDeLaZona`, plazo 4 s; si falla se sigue sin esto), sobre el rectángulo del trayecto más 1,5 km. Atascos moderados o fuertes (iconCategory 6, magnitud ≥2) y vías cerradas (8) se vuelven rectángulos de 6 m a cada lado del trazo (`zonasDeIncidentes`), que van a `avoid_polygons` en todas las variantes, rápida incluida. En bici solo los cierres.
   Excepciones: los incidentes a menos de 150 m de la salida o la llegada no se esquivan; se avisan. Si con las zonas no queda ninguna ruta, se busca otra vez sin ellas.
