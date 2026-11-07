@@ -52,7 +52,11 @@ aprendiendo a manejar (auto, moto eléctrica) o va en bici/monopatín. Producci�
 - Giros: se usan maniobras ORS, no curvas geométricas. Se toleran 2 giros ponderados por km (mínimo 4 por viaje), con peso adicional para giros cerrados, vueltas en U y maniobras separadas por menos de 80 m. El descuento máximo es 12 puntos; ajustes en `config/tranquilidad.js`.
 - Distancia común (2026-11-04): entre candidatas del mismo viaje, cruces (por cada 5 km) y giros tolerados (2 por km) se miden con la distancia de la candidata **más corta** (`analisis.distanciaReferencia`), no con la propia. Antes un rodeo largo "diluía" sus cruces y ganaba giros gratis: Magdalena → Larcomar recomendaba 12,8 km con 15 cruces y 32 giros frente a 6,3 km por el malecón con 2 cruces. La práctica sigue con su propia distancia.
 - Tiempo máximo de principiante: 1,6 × la más rápida + 10 min (antes 2,5).
-- Alternativas: cada variante pide `alternative_routes` a ORS (hasta 3 en el mismo pedido; si falla, se repite sin ellas). Práctica y `/api/tramo` no las usan.
+- Alternativas (corregido el 2026-11-06 tras un 504 en producción): con miles de zonas a evitar, las alternativas de ORS tardaban 15 a más de 80 s en viajes largos (La Paz 2551 → Parque Kennedy).
+  Ahora solo se piden en viajes de hasta 7 km en línea recta, en paralelo con la ruta sola y con plazo propio de 12 s; si no llegan, se sigue sin ellas. Práctica y `/api/tramo` no las usan.
+- Plazo de búsqueda: todos los pedidos a ORS comparten 32 s (`PLAZO_BUSQUEDA`), así la búsqueda termina antes de los 60 s de Vercel, tráfico de TomTom incluido.
+  Si una variante tarda o falla la red, se descarta y se sigue con las demás; solo cortan la búsqueda la key ausente o inválida y el límite de ORS. La interfaz explica en simple un 502, 503 o 504.
+- Pendiente detectado: en bici desde Av. La Paz 2551, el ajuste del origen salta a la Ciclovía Costa Verde (290 m, al pie del acantilado) y la ruta da 23,6 km. Hay que decidir con el usuario cómo limitar ese ajuste.
 - Sin ruta tranquila: si la mejor queda bajo 40, la tarjeta dice "La menos difícil" y un aviso lo explica; si es por el tráfico de ahora (sin él llegaría a 40), el aviso lo dice así.
 - Moto eléctrica por avenidas rápidas: el usuario va a 40 km/h por la Costanera, por la derecha y junto a otras motos eléctricas, y no quiere que se excluya. No se usa `maxspeed` para quitar vías. El scooter sigue junto con la bici.
 
