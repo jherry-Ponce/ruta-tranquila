@@ -14,7 +14,10 @@ export class ErrorServicio extends Error {
 
 export const hayKeyOrs = () => Boolean(process.env.ORS_API_KEY);
 
-async function pedir(url, opciones = {}) {
+// limiteMs: tiempo máximo para este pedido, reintento incluido. Una búsqueda de rutas tiene que terminar
+// antes de que Vercel corte la función (60 s), así que cada pedido recibe lo que queda de su plazo.
+async function pedir(url, opciones = {}, limiteMs = 80_000) {
+  const plazo = Date.now() + limiteMs;
   if (!hayKeyOrs()) {
     throw new ErrorServicio('Falta la key de OpenRouteService. Ponla en el archivo .env (ORS_API_KEY) y reinicia.', 503, 'sin_key');
   }
@@ -30,11 +33,15 @@ async function pedir(url, opciones = {}) {
           ...(opciones.body ? { 'Content-Type': 'application/json' } : {}),
         },
         // Las rutas con muchas zonas a evitar pueden tardar más de 10 segundos.
-        signal: AbortSignal.timeout(40_000),
+        signal: AbortSignal.timeout(Math.max(1_000, Math.min(40_000, plazo - Date.now()))),
       });
     } catch (error) {
       // Solo el código del error de red, nunca la URL ni el cuerpo (llevan direcciones o coordenadas).
       console.warn(`Conexión con OpenRouteService falló (intento ${intento}): ${error.cause?.code ?? error.name}`);
+      // Sin tiempo para otro intento: se avisa como demora, que el planificador puede tolerar.
+      if (plazo - Date.now() < 3_000) {
+        throw new ErrorServicio('OpenRouteService está tardando más de lo normal. Intenta otra vez en un momento.', 504, 'tiempo');
+      }
       if (intento >= 2) {
         throw new ErrorServicio('No pude conectarme con OpenRouteService. Revisa tu conexión a internet.', 502, 'red');
       }
@@ -72,8 +79,8 @@ async function pedir(url, opciones = {}) {
 }
 
 // Devuelve un FeatureCollection GeoJSON con una o varias rutas.
-export function pedirRutas(perfil, cuerpo) {
-  return pedir(`${RUTAS}/directions/${perfil}/geojson`, { method: 'POST', body: JSON.stringify(cuerpo) });
+export function pedirRutas(perfil, cuerpo, limiteMs) {
+  return pedir(`${RUTAS}/directions/${perfil}/geojson`, { method: 'POST', body: JSON.stringify(cuerpo) }, limiteMs);
 }
 
 function parametrosLima(limites) {

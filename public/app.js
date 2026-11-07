@@ -51,7 +51,13 @@ async function api(ruta, cuerpo) {
   } catch {
     // Respuesta vacía o no JSON.
   }
-  if (!respuesta.ok) throw new Error(datos.error || `Error ${respuesta.status}`);
+  if (!respuesta.ok) {
+    // Sin mensaje del servidor (por ejemplo, Vercel cortó una búsqueda demasiado larga): explicarlo en simple.
+    const sinMensaje = [502, 503, 504].includes(respuesta.status)
+      ? 'La búsqueda tardó demasiado: el servicio de rutas está lento. Intenta otra vez en un momento.'
+      : 'Algo falló en el servidor. Intenta otra vez en un momento.';
+    throw new Error(datos.error || sinMensaje);
+  }
   return datos;
 }
 

@@ -22,6 +22,16 @@ const ALTERNATIVAS = { target_count: 3, weight_factor: 1.6, share_factor: 0.6 };
 // elevation: subida y bajada de cada ruta, para estimar la batería de scooters y motos eléctricas.
 const BASE = { extra_info: ['waytype'], instructions: true, language: 'es', units: 'm', elevation: true };
 const ERRORES_DEFINITIVOS = new Set(['sin_key', 'key_invalida', 'limite', 'red', 2009, 2010]);
+// En una búsqueda, solo estos errores la cortan: si una variante tarda o falla la red, se sigue con las demás.
+const ERRORES_DE_CUENTA = new Set(['sin_key', 'key_invalida', 'limite']);
+// Plazo de todos los pedidos a ORS de una búsqueda: deja margen para el tráfico de TomTom (8 s) dentro de
+// los 60 s de Vercel. Las alternativas son un extra: si no llegan en su plazo, se sigue sin ellas.
+const PLAZO_BUSQUEDA = 32_000;
+const PLAZO_ALTERNATIVAS = 12_000;
+// Con muchas zonas a evitar, las alternativas de ORS se vuelven lentas en viajes largos: La Paz 2551 →
+// Parque Kennedy (9 km en línea recta) tardaba 34 s o más. En viajes cortos llegan rápido y aportan
+// caminos que la preferencia sola no elige (Magdalena → Larcomar por el malecón).
+const DISTANCIA_ALTERNATIVAS = 7_000; // m en línea recta
 
 const NOMBRE_CLASE = { autopista: 'vía rápida', primaria: 'avenida grande', secundaria: 'avenida mediana' };
 const CONSEJO_TRAMO = {
@@ -48,44 +58,43 @@ function leerRuta(feature, origen) {
   };
 }
 
-async function conAlternativas(perfil, cuerpo, origen) {
+async function conAlternativas(perfil, cuerpo, origen, plazo = Date.now() + PLAZO_BUSQUEDA) {
   try {
-    const fc = await pedirRutas(perfil, { ...cuerpo, alternative_routes: ALTERNATIVAS });
+    const fc = await pedirRutas(perfil, { ...cuerpo, alternative_routes: ALTERNATIVAS }, plazo - Date.now());
     return fc.features.map((f, i) => leerRuta(f, i === 0 ? origen : `${origen}-alt${i}`));
   } catch (error) {
     // Las rutas alternativas tienen límites propios (por ejemplo de distancia); se reintenta sin ellas.
-    if (ERRORES_DEFINITIVOS.has(error.codigo)) throw error;
-    const fc = await pedirRutas(perfil, cuerpo);
+    if (ERRORES_DE_CUENTA.has(error.codigo)) throw error;
+    const fc = await pedirRutas(perfil, cuerpo, plazo - Date.now());
     return fc.features.map((f) => leerRuta(f, origen));
   }
 }
 
 // Una ruta que evita recorrer ciertas clases de vía. Si ORS la rechaza (por ejemplo porque las zonas
 // dejan aislado un punto), se descarta sin cortar la búsqueda.
-// Con `alternativas`, ORS entrega hasta 3 caminos en el mismo pedido (cuenta como uno en la cuota) y se
-// devuelve una lista. Así aparecen opciones que la preferencia sola no elige, como ir por el malecón.
-async function sinAvenidas(cuerpo, red, extremos, clases, preference, origen, perfil = 'driving-car', zonasExtra = [], alternativas = false) {
+// Con `alternativas` se piden en paralelo la ruta sola y otra con hasta 3 caminos, y se devuelve una lista.
+// Con muchas zonas a evitar, ORS puede tardar 30 s o más en las alternativas (La Paz → Parque Kennedy),
+// así que solo se esperan PLAZO_ALTERNATIVAS; la ruta sola llega antes y nunca se pierde por ellas.
+async function sinAvenidas(cuerpo, red, extremos, clases, preference, origen, perfil = 'driving-car', zonasExtra = [], alternativas = false, plazo = Date.now() + PLAZO_BUSQUEDA) {
   const zonas = [...(clases.size ? zonasAEvitar(red, extremos, clases) : []), ...zonasExtra];
   const opciones = zonas.length ? { avoid_polygons: { type: 'MultiPolygon', coordinates: zonas } } : {};
   if (perfil !== 'driving-car') opciones.avoid_features = ['steps'];
   const pedido = { ...cuerpo, preference, options: opciones };
+  const extras = alternativas
+    ? pedirRutas(perfil, { ...pedido, alternative_routes: ALTERNATIVAS }, Math.min(PLAZO_ALTERNATIVAS, plazo - Date.now()))
+        .then((fc) => fc.features.slice(1).map((f, i) => ({ ruta: leerRuta(f, `${origen}-alt${i + 1}`) })))
+        .catch(() => [])
+    : Promise.resolve([]);
+  let principal;
   try {
-    if (alternativas) {
-      try {
-        const fc = await pedirRutas(perfil, { ...pedido, alternative_routes: ALTERNATIVAS });
-        return fc.features.map((f, i) => ({ ruta: leerRuta(f, i === 0 ? origen : `${origen}-alt${i}`) }));
-      } catch (error) {
-        // Las alternativas tienen límites propios (por ejemplo de distancia): se reintenta sin ellas.
-        if (ERRORES_DEFINITIVOS.has(error.codigo)) throw error;
-      }
-    }
-    const fc = await pedirRutas(perfil, pedido);
-    const ruta = { ruta: leerRuta(fc.features[0], origen) };
-    return alternativas ? [ruta] : ruta;
+    const fc = await pedirRutas(perfil, pedido, plazo - Date.now());
+    principal = { ruta: leerRuta(fc.features[0], origen) };
   } catch (error) {
-    if (ERRORES_DEFINITIVOS.has(error.codigo) && error.codigo !== 2009 && error.codigo !== 2010) throw error;
-    return { descartada: `${origen}: ORS no pudo calcularla (${error.message})` };
+    if (ERRORES_DE_CUENTA.has(error.codigo)) throw error;
+    principal = { descartada: `${origen}: ORS no pudo calcularla (${error.message})` };
   }
+  if (!alternativas) return principal;
+  return [principal, ...(await extras)];
 }
 
 const sonIguales = (a, b) => fraccionCompartida(a.metros, b.metros) > 0.9 && fraccionCompartida(b.metros, a.metros) > 0.9;
@@ -305,6 +314,8 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
   ];
   const cuerpo = { ...BASE, coordinates: extremos };
   const horario = evaluarHorario(salida, cfg);
+  const plazo = Date.now() + PLAZO_BUSQUEDA;
+  const alternativas = distancia(aMetros(extremos[0]), aMetros(extremos[1])) <= DISTANCIA_ALTERNATIVAS;
 
   const grandes = new Set(['autopista', 'primaria']);
   const medianas = new Set(['autopista', 'primaria', 'secundaria']);
@@ -313,22 +324,27 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
     // Bicicleta o monopatín (R.M. 127-2021-MTC: solo ciclovías, calles o jirones): nunca por avenidas.
     pedidos = [
       // Sin zonas: el perfil de bici elige por sí mismo las ciclovías, incluso las que van junto a una avenida.
-      sinAvenidas(cuerpo, red, extremos, new Set(['autopista']), 'recommended', 'bici-ciclovias', 'cycling-regular', zonasExtra, true),
-      sinAvenidas(cuerpo, red, extremos, medianas, 'recommended', 'bici', 'cycling-regular', zonasExtra, true),
-      sinAvenidas(cuerpo, red, extremos, medianas, 'shortest', 'bici-corta', 'cycling-regular', zonasExtra, true),
+      sinAvenidas(cuerpo, red, extremos, new Set(['autopista']), 'recommended', 'bici-ciclovias', 'cycling-regular', zonasExtra, alternativas, plazo),
+      sinAvenidas(cuerpo, red, extremos, medianas, 'recommended', 'bici', 'cycling-regular', zonasExtra, alternativas, plazo),
+      sinAvenidas(cuerpo, red, extremos, medianas, 'shortest', 'bici-corta', 'cycling-regular', zonasExtra, alternativas, plazo),
     ];
   } else {
     // La moto eléctrica nunca va por vías rápidas, ni siquiera en la ruta más rápida.
     const base = vehiculo === 'motoElectrica' ? new Set(['autopista']) : new Set();
     const rapida = base.size
-      ? sinAvenidas(cuerpo, red, extremos, base, 'fastest', 'rapida', 'driving-car', zonasExtra, true)
-      : conAlternativas('driving-car', cuerpo, 'rapida').then((rutas) => rutas.map((ruta) => ({ ruta })));
+      ? sinAvenidas(cuerpo, red, extremos, base, 'fastest', 'rapida', 'driving-car', zonasExtra, alternativas, plazo)
+      : conAlternativas('driving-car', cuerpo, 'rapida', plazo)
+          .then((rutas) => rutas.map((ruta) => ({ ruta })))
+          .catch((error) => {
+            if (ERRORES_DE_CUENTA.has(error.codigo)) throw error;
+            return [{ descartada: `rapida: ORS no pudo calcularla (${error.message})` }];
+          });
     const variantes = {
       principiante: [[grandes, 'shortest', 'sin-grandes-corta'], [medianas, 'shortest', 'sin-medianas-corta']],
       intermedio: [[grandes, 'fastest', 'sin-grandes'], [grandes, 'shortest', 'sin-grandes-corta']],
       normal: [[grandes, 'fastest', 'sin-grandes']],
     }[nivel];
-    pedidos = [rapida, ...variantes.map(([clases, pref, id]) => sinAvenidas(cuerpo, red, extremos, clases, pref, id, 'driving-car', zonasExtra, true))];
+    pedidos = [rapida, ...variantes.map(([clases, pref, id]) => sinAvenidas(cuerpo, red, extremos, clases, pref, id, 'driving-car', zonasExtra, alternativas, plazo))];
   }
   const resultados = (await Promise.all(pedidos)).flat();
 
@@ -338,7 +354,13 @@ export async function planificar({ origen, destino, salida, depurar, vehiculo = 
     if (v.ruta) candidatas.push(v.ruta);
     else comparacion.push({ nota: `descartada: ${v.descartada}` });
   }
-  if (!candidatas.length) throw new ErrorServicio('No encontré una ruta que evite las avenidas entre esos puntos.', 422);
+  if (!candidatas.length) {
+    // Si todo falló por demora o red, decirlo así: "no hay ruta" sería falso.
+    if (comparacion.some((c) => /tardando|conectarme/.test(c.nota))) {
+      throw new ErrorServicio('El servicio de rutas está tardando más de lo normal. Intenta otra vez en un momento.', 503, 'tiempo');
+    }
+    throw new ErrorServicio('No encontré una ruta que evite las avenidas entre esos puntos.', 422);
+  }
 
   for (const ruta of candidatas) {
     ajustarDuracion(ruta, vehiculo, ajusteRitmo);

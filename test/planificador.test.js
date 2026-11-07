@@ -98,6 +98,10 @@ test('elige la ruta tranquila y la rápida, y quita las casi iguales', async () 
   assert.ok(rapida.puntosCriticos.some((p) => p.tipo === 'tramo' && p.titulo.includes('Av. Brasil')));
 
   // Nivel principiante: la rápida con alternativas y dos variantes sin avenidas, todas con driving-car.
+  // En un viaje corto cada variante pide además sus alternativas en paralelo (un pedido extra con plazo propio).
+  const extras = pedidos.filter((p) => 'options' in p.cuerpo && p.cuerpo.alternative_routes);
+  assert.equal(extras.length, 2);
+  pedidos.splice(0, pedidos.length, ...pedidos.filter((p) => !extras.includes(p)));
   assert.equal(pedidos.length, 3);
   assert.ok(pedidos.every((p) => p.url.includes('/openrouteservice/v2/directions/driving-car/')));
   assert.deepEqual(pedidos.filter((p) => 'options' in p.cuerpo).map((p) => p.cuerpo.preference), ['shortest', 'shortest']);
@@ -136,7 +140,9 @@ test('en bici, si sale por una avenida, ajusta el origen a una ciclovía cercana
     { red, cfg },
   );
 
-  assert.equal(pedidos.length, 3);
+  // Las 3 variantes; en viajes de hasta 7 km cada una pide además sus alternativas en paralelo.
+  assert.equal(pedidos.filter((p) => !p.cuerpo.alternative_routes).length, 3);
+  assert.ok([0, 3].includes(pedidos.filter((p) => p.cuerpo.alternative_routes).length));
   assert.ok(pedidos.every((p) => p.url.includes('/openrouteservice/v2/directions/cycling-regular/')));
   assert.deepEqual(pedidos[0].cuerpo.coordinates[0], [snap.lon, snap.lat]);
   assert.deepEqual(pedidos[0].cuerpo.coordinates[1], [destino.lon, destino.lat]);
